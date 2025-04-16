@@ -1,0 +1,47 @@
+# TermAI .gitignore for C++/CMake/ncurses projects
+
+# Build directories
+/build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Compiled binary/executables
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.dll
+*.lib
+
+# Logs
+*.log
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS/desktop files
+.DS_Store
+Thumbs.db
+
+# User config files
+*.user
+*.local
+
+# Ignore generated configs
+chatbot_config.json
+
+# Coverage/test output
+*.gcda
+*.gcno
+*.gcov
+
+# Exclude API keys or secrets if any (customize as needed)
+secrets.env
+.env
