@@ -5,6 +5,16 @@
 #include <curses.h>
 #include "GlobalLogger.hpp"
 
+// Helper class for RAII window management
+class NcursesWindow {
+public:
+    NcursesWindow(WINDOW* win) : win_(win) {}
+    ~NcursesWindow() { if (win_) delwin(win_); }
+    WINDOW* get() { return win_; }
+private:
+    WINDOW* win_;
+};
+
 SettingsPanel::SettingsPanel(Settings& settings, ConfigManager* config_manager)
     : settings_(settings), config_manager_(config_manager) {}
 
@@ -13,22 +23,40 @@ void SettingsPanel::set_config_manager(ConfigManager* config_manager) {
 }
 
 void SettingsPanel::draw() {
+    // Call the draw(WINDOW*) implementation using a temporary window
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
     int win_width = std::max(40, cols * 2 / 3);
     int win_height = std::min(rows - 2, 14);
     int startx = (cols - win_width) / 2;
     int starty = (rows - win_height) / 2;
-    WINDOW* win = newwin(win_height, win_width, starty, startx);
-    keypad(win, TRUE);
+    
+    NcursesWindow temp_win(newwin(win_height, win_width, starty, startx));
+    if (temp_win.get()) {
+        keypad(temp_win.get(), TRUE);
+        draw(temp_win.get());
+    } else {
+        get_logger().log(LogLevel::Error, "Failed to create settings window");
+    }
+}
+
+void SettingsPanel::draw(WINDOW* win) {
+    get_logger().log(LogLevel::Debug, "SettingsPanel::draw(WINDOW*) called");
+    int rows, cols;
+    getmaxyx(win, rows, cols);
+    int win_height = rows;
     int row = 2;
+    werase(win);
+    
     for (int i = 0; i < (int)FieldType::COUNT; ++i) {
-        // Only show the API key field for the selected provider
+        // Logic to display only provider-relevant API key fields
         if ((FieldType)i == FieldType::XaiApiKey && settings_.provider != "xai") continue;
         if ((FieldType)i == FieldType::ClaudeApiKey && settings_.provider != "claude") continue;
         if ((FieldType)i == FieldType::OpenaiApiKey && settings_.provider != "openai") continue;
+        
         std::string label, value;
         bool editing = in_edit_mode_ && selected_option_ == i;
+        
         switch ((FieldType)i) {
             case FieldType::DisplayName:
                 label = "Display Name";
@@ -46,6 +74,10 @@ void SettingsPanel::draw() {
                 label = "Claude API Key";
                 value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.claude_api_key.empty() ? "<not set>" : "<hidden>");
                 break;
+            case FieldType::OpenaiApiKey:
+                label = "OpenAI API Key";
+                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.openai_api_key.empty() ? "<not set>" : "<hidden>");
+                break;
             case FieldType::Provider:
                 label = "Provider";
                 if (settings_.provider == "xai") {
@@ -60,15 +92,7 @@ void SettingsPanel::draw() {
                 break;
             case FieldType::Model:
                 label = "Model";
-                if (settings_.provider == "xai") {
-                    value = "grok-3-beta";
-                } else if (settings_.provider == "claude") {
-                    value = "claude";
-                } else if (settings_.provider == "openai") {
-                    value = "gpt-4o";
-                } else {
-                    value = settings_.model;
-                }
+                value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.model;
                 break;
             case FieldType::StoreHistory:
                 label = "Store Chat History";
@@ -81,17 +105,15 @@ void SettingsPanel::draw() {
             default: break;
         }
         draw_option(win, row++, label, value, selected_option_ == i, editing);
-
     }
+    
     box(win, 0, 0);
     mvwprintw(win, win_height - 4, 2, "Use Arrow keys to navigate, Enter to edit, ESC to exit");
     if (in_edit_mode_) {
         mvwprintw(win, win_height - 3, 2, "Type to edit, Enter to save, ESC to cancel");
     }
     wrefresh(win);
-    delwin(win);
 }
-
 
 void SettingsPanel::handle_input(int ch) {
     if (in_edit_mode_) {
@@ -131,21 +153,16 @@ void SettingsPanel::handle_input(int ch) {
                     }
                     break;
                 case FieldType::Model:
-                    // Cycle model for current provider (only one option for now)
-                    if (settings_.provider == "xai") {
-                        settings_.model = "grok-3-beta";
-                    } else if (settings_.provider == "claude") {
-                        settings_.model = "claude";
-                    } else if (settings_.provider == "openai") {
-                        settings_.model = "gpt-4o";
-                    }
+                    settings_.model = edit_buffer_;
                     break;
                 default:
                     break;
             }
             if (config_manager_) {
                 auto result = config_manager_->save(settings_);
-                if (!result) { /* Log or display error */ }
+                if (!result) {
+                    get_logger().log(LogLevel::Error, "Failed to save settings");
+                }
             }
             in_edit_mode_ = false;
             edit_buffer_.clear();
@@ -170,13 +187,17 @@ void SettingsPanel::handle_input(int ch) {
                 settings_.store_chat_history = !settings_.store_chat_history;
                 if (config_manager_) {
                     auto result = config_manager_->save(settings_);
-                    if (!result) { /* Log or display error */ }
+                    if (!result) {
+                        get_logger().log(LogLevel::Error, "Failed to save settings");
+                    }
                 }
             } else if (selected_option_ == (int)FieldType::Theme) {
                 settings_.theme_id = (settings_.theme_id + 1) % 4; // Example: 4 themes
                 if (config_manager_) {
                     auto result = config_manager_->save(settings_);
-                    if (!result) { /* Log or display error */ }
+                    if (!result) {
+                        get_logger().log(LogLevel::Error, "Failed to save settings");
+                    }
                 }
             } else {
                 in_edit_mode_ = true;

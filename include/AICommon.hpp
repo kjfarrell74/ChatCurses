@@ -15,8 +15,9 @@ enum class ApiError {
 };
 
 struct ApiErrorInfo {
-    ApiError error = ApiError::Unknown; // For OpenAI
-    ApiError code = ApiError::Unknown;  // For xAI compatibility
-    std::string message;                // For OpenAI
-    std::string details;                // For xAI
+    ApiError code = ApiError::Unknown;
+    std::string message;
+    // For backward compatibility
+    ApiError error() const { return code; }
+    const std::string& details() const { return message; }
 };

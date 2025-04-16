@@ -14,54 +14,6 @@ static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* use
     return size * nmemb;
 }
 
-XAIClient::XAIClient() {}
-
-void XAIClient::push_user_message(const std::string& content) {
-    std::lock_guard lock(mutex_);
-    conversation_history_.push_back({{"role", "user"}, {"content", content}});
-}
-
-void XAIClient::push_assistant_message(const std::string& content) {
-    std::lock_guard lock(mutex_);
-    conversation_history_.push_back({{"role", "assistant"}, {"content", content}});
-}
-
-void XAIClient::clear_history() {
-    std::lock_guard lock(mutex_);
-    conversation_history_.clear();
-}
-
-nlohmann::json XAIClient::build_message_history(const std::string& latest_user_msg) const {
-    std::lock_guard lock(mutex_);
-    nlohmann::json messages = nlohmann::json::array();
-    if (!system_prompt_.empty()) {
-        messages.push_back({{"role", "system"}, {"content", system_prompt_}});
-    }
-    for (const auto& msg : conversation_history_) {
-        messages.push_back(msg);
-    }
-    if (!latest_user_msg.empty()) {
-        messages.push_back({{"role", "user"}, {"content", latest_user_msg}});
-    }
-    return messages;
-}
-
-
-void XAIClient::set_api_key(const std::string& key) {
-    std::lock_guard lock(mutex_);
-    api_key_ = key;
-}
-
-void XAIClient::set_system_prompt(const std::string& prompt) {
-    std::lock_guard lock(mutex_);
-    system_prompt_ = prompt;
-}
-
-void XAIClient::set_model(const std::string& model) {
-    std::lock_guard lock(mutex_);
-    model_ = model;
-}
-
 void XAIClient::send_message_stream(
     const std::string& prompt,
     const std::string& model,
@@ -99,14 +51,24 @@ void XAIClient::send_message_stream(
     }).detach();
 }
 
-std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(const std::string& prompt, const std::string& model) {
-    return std::async(std::launch::async, [this, prompt, model]() -> std::expected<std::string, ApiErrorInfo> {
+std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(
+    const std::string& prompt,
+    const std::string& model) {
+    // Legacy method - build the message history and call the interface method
+    auto messages = build_message_history(prompt);
+    return send_message(messages, model);
+}
+
+std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(
+    const nlohmann::json& messages, 
+    const std::string& model) {
+    return std::async(std::launch::async, [this, messages, model]() -> std::expected<std::string, ApiErrorInfo> {
         if (api_key_.empty()) {
-            return std::unexpected(ApiErrorInfo{.code = ApiError::ApiKeyNotSet, .details = "API key is required but not set."});
+            return std::unexpected(ApiErrorInfo{.code = ApiError::ApiKeyNotSet, .message = "API key is required but not set."});
         }
         CURL* curl = curl_easy_init();
         if (!curl) {
-            return std::unexpected(ApiErrorInfo{.code = ApiError::CurlInitFailed, .details = "Failed to initialize CURL handle."});
+            return std::unexpected(ApiErrorInfo{.code = ApiError::CurlInitFailed, .message = "Failed to initialize CURL handle."});
         }
         // RAII for curl handle and slist
         auto curl_cleanup = [](CURL* c){ if(c) curl_easy_cleanup(c); };
@@ -119,10 +81,11 @@ std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(co
         headers = curl_slist_append(headers, "Content-Type: application/json");
         headers_ptr.reset(headers);
 
-        // Build full conversation history for the prompt
+        std::string model_to_use = model.empty() ? (model_.empty() ? "grok-2" : model_) : model;
+        
         nlohmann::json req = {
-            {"model", model.empty() ? "grok-2" : model},
-            {"messages", build_message_history(prompt)}
+            {"model", model_to_use},
+            {"messages", messages}
         };
         std::string req_str = req.dump();
 
@@ -134,7 +97,7 @@ std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(co
 
         CURLcode res = curl_easy_perform(curl);
         if (res != CURLE_OK) {
-            return std::unexpected(ApiErrorInfo{.code = ApiError::NetworkError, .details = curl_easy_strerror(res)});
+            return std::unexpected(ApiErrorInfo{.code = ApiError::NetworkError, .message = curl_easy_strerror(res)});
         }
         try {
             auto resp = nlohmann::json::parse(readBuffer);
@@ -161,12 +124,12 @@ std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(co
                 }
                 return clean;
             } else if (resp.contains("error")) {
-                return std::unexpected(ApiErrorInfo{.code = ApiError::MalformedResponse, .details = resp["error"].dump()});
+                return std::unexpected(ApiErrorInfo{.code = ApiError::MalformedResponse, .message = resp["error"].dump()});
             } else {
-                return std::unexpected(ApiErrorInfo{.code = ApiError::MalformedResponse, .details = "Malformed response"});
+                return std::unexpected(ApiErrorInfo{.code = ApiError::MalformedResponse, .message = "Malformed response"});
             }
         } catch (const std::exception& e) {
-            return std::unexpected(ApiErrorInfo{.code = ApiError::JsonParseError, .details = e.what()});
+            return std::unexpected(ApiErrorInfo{.code = ApiError::JsonParseError, .message = e.what()});
         }
     });
 }

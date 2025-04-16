@@ -1,16 +1,9 @@
 #pragma once
-#include <string>
-#include <nlohmann/json.hpp>
-#include <future>
-#include <vector>
+#include "BaseAIClient.hpp"
 #include <concepts>
 #include <coroutine>
-#include <expected> // C++23
-#include <functional> // For std::function
-#include "AICommon.hpp"
 
 // Concept for AI provider extensibility
-
 template<typename T>
 concept AIProvider = requires(T a, const std::string& prompt, const std::string& model) {
     { a.send_message(prompt, model) } -> std::same_as<std::future<std::string>>;
@@ -19,35 +12,49 @@ concept AIProvider = requires(T a, const std::string& prompt, const std::string&
     { a.set_model(std::string{}) };
 };
 
-
-class XAIClient {
+class XAIClient : public BaseAIClient {
 public:
-    // Conversation history support
-    void push_user_message(const std::string& content);
-    void push_assistant_message(const std::string& content);
-    void clear_history();
-    nlohmann::json build_message_history(const std::string& latest_user_msg = "") const;
-public:
+    XAIClient() = default;
+    
+    nlohmann::json build_message_history(const std::string& latest_user_msg = "") const override {
+        std::lock_guard lock(mutex_);
+        nlohmann::json messages = nlohmann::json::array();
+        
+        // Add system message if available
+        if (!system_prompt_.empty()) {
+            messages.push_back({{"role", "system"}, {"content", system_prompt_}});
+        }
+        
+        // Add conversation history
+        for (const auto& msg : conversation_history_) {
+            messages.push_back(msg);
+        }
+        
+        // Add latest user message if provided
+        if (!latest_user_msg.empty()) {
+            messages.push_back({{"role", "user"}, {"content", latest_user_msg}});
+        }
+        
+        return messages;
+    }
+    
+    // Override the send_message method to handle xAI-specific implementation
+    std::future<std::expected<std::string, ApiErrorInfo>> send_message(
+        const nlohmann::json& messages, 
+        const std::string& model = "") override;
+    
+    // Legacy method signature - delegates to the interface method
+    std::future<std::expected<std::string, ApiErrorInfo>> send_message(
+        const std::string& prompt,
+        const std::string& model = "");
+    
+    // Override the streaming interface with xAI-specific implementation
     void send_message_stream(
         const std::string& prompt,
         const std::string& model,
         std::function<void(const std::string& chunk, bool is_last_chunk)> on_chunk_cb,
         std::function<void()> on_done_cb,
-        std::function<void(const ApiErrorInfo& error)> on_error_cb);
-
-    XAIClient();
-    void set_api_key(const std::string& key);
-    void set_system_prompt(const std::string& prompt);
-    void set_model(const std::string& model);
-    std::future<std::expected<std::string, ApiErrorInfo>> send_message(const std::string& prompt, const std::string& model = "");
+        std::function<void(const ApiErrorInfo& error)> on_error_cb) override;
+    
     std::vector<std::string> available_models() const;
-    // Deprecated: Use the expected return value instead
-    // std::string last_error() const;
-private:
-    std::string api_key_;
-    std::string system_prompt_;
-    std::string model_;
-    mutable std::mutex mutex_;
-    std::vector<nlohmann::json> conversation_history_;
 };
-

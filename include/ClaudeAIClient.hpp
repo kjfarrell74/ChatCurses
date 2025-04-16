@@ -1,27 +1,24 @@
 #pragma once
-#include <string>
-#include <future>
-#include <vector>
-#include <mutex>
-#include <nlohmann/json.hpp>
-#include <expected>
-#include "XAIClient.hpp" // for ApiErrorInfo
+#include "BaseAIClient.hpp"
 
-class ClaudeAIClient {
+class ClaudeAIClient : public BaseAIClient {
 public:
-    ClaudeAIClient();
-    void set_api_key(const std::string& key);
-    void set_system_prompt(const std::string& prompt);
-    void set_model(const std::string& model);
-    std::future<std::expected<std::string, ApiErrorInfo>> send_message(const nlohmann::json& messages, const std::string& model = "claude");
-    void clear_history();
-    void push_user_message(const std::string& content);
-    void push_assistant_message(const std::string& content);
-    nlohmann::json build_message_history(const std::string& latest_user_msg = "") const;
-private:
-    std::string api_key_;
-    std::string system_prompt_;
-    std::string model_ = "claude";
-    mutable std::mutex mutex_;
-    std::vector<nlohmann::json> conversation_history_;
+    ClaudeAIClient() { model_ = "claude"; }
+    
+    nlohmann::json build_message_history(const std::string& latest_user_msg = "") const override {
+        std::lock_guard lock(mutex_);
+        nlohmann::json messages = nlohmann::json::array();
+        for (const auto& msg : conversation_history_) {
+            if (msg.contains("role") && msg["role"] == "system") continue;
+            messages.push_back(msg);
+        }
+        if (!latest_user_msg.empty()) {
+            messages.push_back({{"role", "user"}, {"content", latest_user_msg}});
+        }
+        return messages;
+    }
+    
+    std::future<std::expected<std::string, ApiErrorInfo>> send_message(
+        const nlohmann::json& messages, 
+        const std::string& model = "") override;
 };

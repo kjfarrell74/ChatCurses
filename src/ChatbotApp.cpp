@@ -128,7 +128,7 @@ public:
                                     claude_client_.push_assistant_message(reply);
                                 } else {
                                     auto error = result.error();
-                                    std::string error_msg = std::format("[Error {}: {}]", static_cast<int>(error.code), error.details);
+                                    std::string error_msg = std::format("[Error {}: {}]", static_cast<int>(error.code), error.message);
                                     message_handler_.append_to_last_ai_message(error_msg, true);
                                 }
                                 waiting_for_ai_ = false;
@@ -146,7 +146,7 @@ public:
                                     openai_client_.push_assistant_message(reply);
                                 } else {
                                     auto error = result.error();
-std::string error_msg = std::format("[OpenAI Error {}: {}]", static_cast<int>(error.error), error.message);
+std::string error_msg = std::format("[OpenAI Error {}: {}]", static_cast<int>(error.code), error.message);
 message_handler_.append_to_last_ai_message(error_msg, true);
                                 }
                                 waiting_for_ai_ = false;
@@ -168,9 +168,9 @@ message_handler_.append_to_last_ai_message(error_msg, true);
                                     needs_redraw_ = true;
                                 },
                                 [this](const ApiErrorInfo& error) {
-                                    std::string error_msg = std::format("[Error {}: {}]", static_cast<int>(error.code), error.details);
+                                    std::string error_msg = std::format("[Error {}: {}]", static_cast<int>(error.code), error.message);
                                     message_handler_.append_to_last_ai_message(error_msg, true);
-                                    get_logger().log(LogLevel::Error, std::format("API Error: {} - {}", static_cast<int>(error.code), error.details));
+                                    get_logger().log(LogLevel::Error, std::format("API Error: {} - {}", static_cast<int>(error.code), error.message));
                                     waiting_for_ai_ = false;
                                     needs_redraw_ = true;
                                 }
