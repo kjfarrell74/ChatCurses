@@ -119,7 +119,7 @@ public:
                         if (settings_.provider == "claude") {
                             claude_client_.push_user_message(input);
                             auto messages = claude_client_.build_message_history();
-                            std::thread([=]() {
+                            std::thread([this, messages, model_to_use]() {
                                 auto fut = claude_client_.send_message(messages, model_to_use);
                                 auto result = fut.get();
                                 if (result) {
@@ -137,7 +137,7 @@ public:
                         } else if (settings_.provider == "openai") {
                             openai_client_.push_user_message(input);
                             auto messages = openai_client_.build_message_history("");
-                            std::thread([=]() {
+                            std::thread([this, messages, model_to_use]() {
                                 auto fut = openai_client_.send_message(messages, model_to_use);
                                 auto result = fut.get();
                                 if (result) {
@@ -146,8 +146,8 @@ public:
                                     openai_client_.push_assistant_message(reply);
                                 } else {
                                     auto error = result.error();
-std::string error_msg = std::format("[OpenAI Error {}: {}]", static_cast<int>(error.code), error.message);
-message_handler_.append_to_last_ai_message(error_msg, true);
+                                    std::string error_msg = std::format("[OpenAI Error {}: {}]", static_cast<int>(error.code), error.message);
+                                    message_handler_.append_to_last_ai_message(error_msg, true);
                                 }
                                 waiting_for_ai_ = false;
                                 needs_redraw_ = true;
@@ -254,8 +254,7 @@ message_handler_.append_to_last_ai_message(error_msg, true);
         exited = true;
         config_manager_.save(settings_);
         running_ = false;
-        // Defensive: call endwin() directly in case NCursesUI is destroyed
-        endwin();
+        // Let NCursesUI destructor handle endwin() via RAII pattern
     }
 
 private:
