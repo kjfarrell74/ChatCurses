@@ -85,8 +85,26 @@ void SettingsPanel::draw(WINDOW* win) {
                 value = settings_.get_display_provider();
                 break;
             case FieldType::Model:
-                label = "Model";
-                value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.model;
+                {
+                    label = "Model";
+                    // If in edit mode, show the edit buffer
+                    if (in_edit_mode_ && selected_option_ == i) {
+                        value = edit_buffer_;
+                    } else {
+                        // Get the list of available models for the current provider
+                        auto& registry = ProviderRegistry::instance();
+                        auto available_models = registry.models(settings_.provider);
+                        
+                        // Find current model in the list
+                        auto it = std::find(available_models.begin(), available_models.end(), settings_.model);
+                        if (it != available_models.end()) {
+                            size_t index = std::distance(available_models.begin(), it) + 1;
+                            value = std::format("{}/{}: {}", index, available_models.size(), settings_.model);
+                        } else {
+                            value = settings_.model;
+                        }
+                    }
+                }
                 break;
             case FieldType::StoreHistory:
                 label = "Store Chat History";
@@ -102,7 +120,8 @@ void SettingsPanel::draw(WINDOW* win) {
     }
     
     box(win, 0, 0);
-    mvwprintw(win, win_height - 4, 2, "Use Arrow keys to navigate, Enter to edit, ESC to exit");
+    mvwprintw(win, win_height - 5, 2, "Use Up/Down to navigate, Enter to edit, ESC to exit");
+    mvwprintw(win, win_height - 4, 2, "Use Left/Right arrows to cycle Provider and Model options");
     if (in_edit_mode_) {
         mvwprintw(win, win_height - 3, 2, "Type to edit, Enter to save, ESC to cancel");
     }
@@ -193,6 +212,31 @@ void SettingsPanel::handle_input(int ch) {
                     settings_.provider = *it;
                     settings_.initialize_defaults(); // Set model to default for new provider
                 }
+            } 
+            else if (selected_option_ == (int)FieldType::Model) {
+                // Cycle models for current provider using ProviderRegistry
+                auto& registry = ProviderRegistry::instance();
+                auto available_models = registry.models(settings_.provider);
+                auto it = std::find(available_models.begin(), available_models.end(), settings_.model);
+                
+                if (it != available_models.end()) {
+                    if (ch == KEY_RIGHT) {
+                        ++it;
+                        if (it == available_models.end()) it = available_models.begin();
+                    } else {
+                        if (it == available_models.begin()) it = available_models.end();
+                        --it;
+                    }
+                    settings_.model = *it;
+                    
+                    // Save settings when model changes
+                    if (config_manager_) {
+                        auto result = config_manager_->save(settings_);
+                        if (!result) {
+                            get_logger().log(LogLevel::Error, "Failed to save settings after model change");
+                        }
+                    }
+                }
             }
             break;
         case 10: // Enter
@@ -264,6 +308,17 @@ void SettingsPanel::draw_option(WINDOW* win, int row, const std::string& label, 
     wmove(win, row, 2);
     wclrtoeol(win);
     wattron(win, attr);
-    mvwprintw(win, row, 2, " %s: %s ", label.c_str(), value.c_str()); // Add padding
+    
+    bool show_arrows = false;
+    if ((label == "Provider" || label == "Model") && selected && !editing) {
+        // Show arrow indicators for options that can be cycled with left/right keys
+        mvwprintw(win, row, 2, " %s: « %s » ", label.c_str(), value.c_str());
+        show_arrows = true;
+    }
+    
+    if (!show_arrows) {
+        mvwprintw(win, row, 2, " %s: %s ", label.c_str(), value.c_str()); // Add padding
+    }
+    
     wattroff(win, attr);
 }
