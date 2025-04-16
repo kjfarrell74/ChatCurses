@@ -3,6 +3,7 @@
 #include <curses.h>
 #include <vector>
 #include <map>
+#include "ProviderConfig.hpp"
 
 struct Settings {
     std::string user_display_name;
@@ -10,10 +11,29 @@ struct Settings {
     std::string xai_api_key;
     std::string claude_api_key;
     std::string openai_api_key;
-    std::string provider = "xai"; // New: provider (e.g., "xai", "claude")
-    std::string model = "grok-3-beta"; // New: model (e.g., "grok-3-beta", "claude")
+    std::string provider = "xai";
+    std::string model = "grok-3-beta";
     bool store_chat_history = true;
     int theme_id = 0;
+
+    // Returns the display name for the current provider
+    std::string get_display_provider() const {
+        return ProviderRegistry::instance().display_name(provider);
+    }
+
+    // Returns the appropriate API key for the current provider
+    std::string get_api_key() const {
+        auto field = ProviderRegistry::instance().api_key_field(provider);
+        if (field == "xai_api_key") return xai_api_key;
+        if (field == "claude_api_key") return claude_api_key;
+        if (field == "openai_api_key") return openai_api_key;
+        return {};
+    }
+
+    // Sets model to the provider's default if the provider changes
+    void initialize_defaults() {
+        model = ProviderRegistry::instance().default_model(provider);
+    }
 };
 
 class ConfigManager;

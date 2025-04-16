@@ -1,4 +1,5 @@
 #include "SettingsPanel.hpp"
+#include "ProviderConfig.hpp"
 #include <string>
 #include <vector>
 #include <format>
@@ -49,11 +50,12 @@ void SettingsPanel::draw(WINDOW* win) {
     werase(win);
     
     for (int i = 0; i < (int)FieldType::COUNT; ++i) {
-        // Logic to display only provider-relevant API key fields
-        if ((FieldType)i == FieldType::XaiApiKey && settings_.provider != "xai") continue;
-        if ((FieldType)i == FieldType::ClaudeApiKey && settings_.provider != "claude") continue;
-        if ((FieldType)i == FieldType::OpenaiApiKey && settings_.provider != "openai") continue;
-        
+        // Show only the relevant API key field for the selected provider
+        auto api_key_field = ProviderRegistry::instance().api_key_field(settings_.provider);
+        if ((FieldType)i == FieldType::XaiApiKey && api_key_field != "xai_api_key") continue;
+        if ((FieldType)i == FieldType::ClaudeApiKey && api_key_field != "claude_api_key") continue;
+        if ((FieldType)i == FieldType::OpenaiApiKey && api_key_field != "openai_api_key") continue;
+
         std::string label, value;
         bool editing = in_edit_mode_ && selected_option_ == i;
         
@@ -80,15 +82,7 @@ void SettingsPanel::draw(WINDOW* win) {
                 break;
             case FieldType::Provider:
                 label = "Provider";
-                if (settings_.provider == "xai") {
-                    value = "xAI";
-                } else if (settings_.provider == "claude") {
-                    value = "Claude";
-                } else if (settings_.provider == "openai") {
-                    value = "OpenAI";
-                } else {
-                    value = settings_.provider;
-                }
+                value = settings_.get_display_provider();
                 break;
             case FieldType::Model:
                 label = "Model";
@@ -180,6 +174,26 @@ void SettingsPanel::handle_input(int ch) {
             break;
         case KEY_DOWN:
             selected_option_ = (selected_option_ + 1) % (int)FieldType::COUNT;
+            break;
+        case KEY_LEFT:
+        case KEY_RIGHT:
+            if (selected_option_ == (int)FieldType::Provider) {
+                // Cycle providers using ProviderRegistry
+                auto& registry = ProviderRegistry::instance();
+                auto providers = registry.provider_ids();
+                auto it = std::find(providers.begin(), providers.end(), settings_.provider);
+                if (it != providers.end()) {
+                    if (ch == KEY_RIGHT) {
+                        ++it;
+                        if (it == providers.end()) it = providers.begin();
+                    } else {
+                        if (it == providers.begin()) it = providers.end();
+                        --it;
+                    }
+                    settings_.provider = *it;
+                    settings_.initialize_defaults(); // Set model to default for new provider
+                }
+            }
             break;
         case 10: // Enter
         case KEY_ENTER:

@@ -1,6 +1,7 @@
 #include "ChatbotApp.hpp"
 #include "NCursesUI.hpp"
 #include "SettingsPanel.hpp"
+#include "ProviderConfig.hpp"
 #include "XAIClient.hpp"
 #include "ClaudeAIClient.hpp"
 #include "OpenAIClient.hpp"
@@ -42,18 +43,22 @@ public:
         } else {
             get_logger().log(LogLevel::Error, std::format("Failed to load settings from {}: Error {}", config_manager_.config_path(), static_cast<int>(load_result.error())));
         }
+        // Set up all AI clients using the registry and settings helpers
         xai_client_.set_api_key(settings_.xai_api_key);
         xai_client_.set_system_prompt(settings_.system_prompt);
-        xai_client_.set_model(settings_.model);
-        xai_client_.clear_history(); // Clear conversation history on app start
+        xai_client_.set_model(ProviderRegistry::instance().default_model("xai"));
+        xai_client_.clear_history();
+
         claude_client_.set_api_key(settings_.claude_api_key);
         claude_client_.set_system_prompt(settings_.system_prompt);
-        claude_client_.set_model(settings_.model);
+        claude_client_.set_model(ProviderRegistry::instance().default_model("claude"));
         claude_client_.clear_history();
+
         openai_client_.set_api_key(settings_.openai_api_key);
         openai_client_.set_system_prompt(settings_.system_prompt);
-        openai_client_.set_model(settings_.model);
+        openai_client_.set_model(ProviderRegistry::instance().default_model("openai"));
         openai_client_.clear_history();
+
         SignalHandler::setup([this]() { on_exit(); });
         ui_ = std::make_unique<NCursesUI>();
         settings_panel_.set_visible(false);
@@ -117,6 +122,8 @@ public:
                         std::string prompt = input;
                         std::string model_to_use = settings_.model;
                         if (settings_.provider == "claude") {
+                            claude_client_.set_api_key(settings_.claude_api_key);
+                            claude_client_.set_model(model_to_use);
                             claude_client_.push_user_message(input);
                             auto messages = claude_client_.build_message_history();
                             std::thread([this, messages, model_to_use]() {
@@ -135,6 +142,8 @@ public:
                                 needs_redraw_ = true;
                             }).detach();
                         } else if (settings_.provider == "openai") {
+                            openai_client_.set_api_key(settings_.openai_api_key);
+                            openai_client_.set_model(model_to_use);
                             openai_client_.push_user_message(input);
                             auto messages = openai_client_.build_message_history("");
                             std::thread([this, messages, model_to_use]() {
@@ -153,13 +162,15 @@ public:
                                 needs_redraw_ = true;
                             }).detach();
                         } else if (settings_.provider == "xai") {
-                            xai_client_.push_user_message(input); // Add to conversation history
+                            xai_client_.set_api_key(settings_.xai_api_key);
+                            xai_client_.set_model(model_to_use);
+                            xai_client_.push_user_message(input);
                             xai_client_.send_message_stream(
                                 prompt, model_to_use,
                                 [this](const std::string& chunk, bool is_last_chunk) {
                                     message_handler_.append_to_last_ai_message(chunk, is_last_chunk);
                                     if (is_last_chunk) {
-                                        xai_client_.push_assistant_message(chunk); // Add AI response to history
+                                        xai_client_.push_assistant_message(chunk);
                                     }
                                     needs_redraw_ = true;
                                 },
