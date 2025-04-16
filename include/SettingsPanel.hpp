@@ -20,6 +20,7 @@ class SettingsPanel {
 public:
     SettingsPanel(Settings& settings, ConfigManager* config_manager = nullptr);
     void draw();
+    void draw(WINDOW* win);
     void handle_input(int ch);
     bool is_visible() const;
     void set_visible(bool visible);

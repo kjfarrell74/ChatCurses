@@ -50,7 +50,6 @@ public:
         int last_message_count = message_handler_.message_count();
         draw();
         while (running_) {
-            // Handle terminal resize
             if (SignalHandler::check_and_clear_resize()) {
                 ui_->handle_resize();
                 needs_redraw_ = true;
@@ -58,12 +57,13 @@ public:
             int ch = getch();
             int current_message_count = message_handler_.message_count();
             bool need_redraw = false;
-            // Redraw if new message arrived
             if (current_message_count != last_message_count) {
                 need_redraw = true;
                 last_message_count = current_message_count;
             }
             if (ch != ERR) {
+                // Log all keypresses for debugging
+                LOGF(logger_, Logger::Level::Debug, "Key pressed: {}", ch);
                 if (settings_panel_.is_visible()) {
                     if (ch == 27) { // ESC
                         settings_panel_.set_visible(false);
@@ -76,7 +76,10 @@ public:
                 }
                 switch (ch) {
                 case KEY_F(2):
+                    logger_.log(Logger::Level::Info, "F2 pressed, toggling settings panel");
                     settings_panel_.set_visible(!settings_panel_.is_visible());
+                    logger_.log(Logger::Level::Debug, std::string("After toggle, settings_panel_.is_visible() = ") + (settings_panel_.is_visible() ? "true" : "false"));
+                    needs_redraw_ = true;
                     break;
                 case KEY_UP:
                     scroll_offset_++; // We'll clamp it later in draw()
@@ -152,6 +155,10 @@ public:
     }
 
     void draw() {
+        if (settings_panel_.is_visible()) {
+            settings_panel_.draw(ui_->get_settings_win());
+            return;
+        }
         std::vector<std::string> raw_lines;
         auto messages = message_handler_.get_messages(0, message_handler_.message_count());
         for (const auto& msg : messages) {
@@ -170,15 +177,18 @@ public:
         if (scroll_offset_ > max_scroll) scroll_offset_ = max_scroll;
         if (scroll_offset_ < 0) scroll_offset_ = 0;
         ui_->draw_input_window(input_editor_.current_line(), input_editor_.cursor_pos());
-        if (settings_panel_.is_visible()) {
-            settings_panel_.draw();
-        }
         ui_->refresh_all();
     }
 
     void on_exit() {
+        // Robust curses cleanup: always call endwin() safely
+        static bool exited = false;
+        if (exited) return;
+        exited = true;
         config_manager_.save(settings_);
         running_ = false;
+        // Defensive: call endwin() directly in case NCursesUI is destroyed
+        endwin();
     }
 
 private:

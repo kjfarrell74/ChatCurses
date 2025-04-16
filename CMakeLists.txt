@@ -20,6 +20,7 @@ add_executable(chatbot
     src/ConfigManager.cpp
     src/SignalHandler.cpp
     src/utf8_utils.cpp
+    src/SettingsPanel_draw_win_impl.cpp
 )
 
 target_include_directories(chatbot PRIVATE include)

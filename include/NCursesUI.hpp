@@ -54,7 +54,7 @@ public:
     void set_theme(int theme_id);
     void handle_resize();
     void show_error(std::string_view message);
-    // ... more as needed
+    WINDOW* get_settings_win() const { return settings_win_.get(); }
 private:
     NcursesWindow chat_win_;
     NcursesWindow input_win_;
