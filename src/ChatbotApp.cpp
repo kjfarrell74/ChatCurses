@@ -4,7 +4,7 @@
 #include "XAIClient.hpp"
 #include "MessageHandler.hpp"
 #include "CommandLineEditor.hpp"
-#include "Logger.hpp"
+#include "GlobalLogger.hpp"
 #include "ConfigManager.hpp"
 #include "SignalHandler.hpp"
 #include <thread>
@@ -23,8 +23,7 @@ public:
     std::atomic<bool> waiting_for_ai_{false};
 public:
     ChatbotAppImpl()
-        : logger_("chatbot.log"),
-          config_manager_("chatbot_config.json"),
+        : config_manager_("chatbot_config.json"),
           settings_panel_(settings_, &config_manager_),
           running_(true),
           scroll_offset_(0)
@@ -32,9 +31,9 @@ public:
         auto load_result = config_manager_.load();
         if (load_result) {
             settings_ = *load_result;
-            LOGF(logger_, Logger::Level::Info, "Settings loaded successfully from {}", config_manager_.config_path());
+            get_logger().log(Logger::Level::Info, "Settings loaded successfully from {}", config_manager_.config_path());
         } else {
-            LOGF(logger_, Logger::Level::Error, "Failed to load settings from {}: Error {}", config_manager_.config_path(), static_cast<int>(load_result.error()));
+            get_logger().log(Logger::Level::Error, "Failed to load settings from {}: Error {}", config_manager_.config_path(), static_cast<int>(load_result.error()));
         }
         xai_client_.set_api_key(settings_.api_key);
         xai_client_.set_system_prompt(settings_.system_prompt);
@@ -63,7 +62,7 @@ public:
             }
             if (ch != ERR) {
                 // Log all keypresses for debugging
-                LOGF(logger_, Logger::Level::Debug, "Key pressed: {}", ch);
+                get_logger().log(Logger::Level::Debug, "Key pressed: {}", ch);
                 if (settings_panel_.is_visible()) {
                     if (ch == 27) { // ESC
                         settings_panel_.set_visible(false);
@@ -72,13 +71,14 @@ public:
                     }
                     settings_panel_.handle_input(ch);
                     need_redraw = true;
+                    needs_redraw_ = true;
                     continue;
                 }
                 switch (ch) {
                 case KEY_F(2):
-                    logger_.log(Logger::Level::Info, "F2 pressed, toggling settings panel");
+                    get_logger().log(Logger::Level::Info, "F2 pressed, toggling settings panel");
                     settings_panel_.set_visible(!settings_panel_.is_visible());
-                    logger_.log(Logger::Level::Debug, std::string("After toggle, settings_panel_.is_visible() = ") + (settings_panel_.is_visible() ? "true" : "false"));
+                    get_logger().log(Logger::Level::Debug, std::string("After toggle, settings_panel_.is_visible() = ") + (settings_panel_.is_visible() ? "true" : "false"));
                     needs_redraw_ = true;
                     break;
                 case KEY_UP:

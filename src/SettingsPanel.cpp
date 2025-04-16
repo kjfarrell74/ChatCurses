@@ -3,7 +3,7 @@
 #include <vector>
 #include <format>
 #include <curses.h>
-#include "Logger.hpp"
+#include "GlobalLogger.hpp"
 
 SettingsPanel::SettingsPanel(Settings& settings, ConfigManager* config_manager)
     : settings_(settings), config_manager_(config_manager) {}
@@ -156,8 +156,7 @@ bool SettingsPanel::is_visible() const {
 }
 
 void SettingsPanel::set_visible(bool visible) {
-    static Logger logger_("chatbot.log");
-    logger_.log(Logger::Level::Debug, std::string("SettingsPanel::set_visible called with visible = ") + (visible ? "true" : "false"));
+    get_logger().log(Logger::Level::Debug, std::string("SettingsPanel::set_visible called with visible = ") + (visible ? "true" : "false"));
     visible_ = visible;
 }
 

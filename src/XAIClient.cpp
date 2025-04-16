@@ -7,6 +7,7 @@
 #include <cstring>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
+#include "GlobalLogger.hpp"
 
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     ((std::string*)userp)->append((char*)contents, size * nmemb);
@@ -89,12 +90,17 @@ std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(co
         headers_ptr.reset(headers);
 
         nlohmann::json req = {
-            {"model", model.empty() ? "grok-3-beta" : model},
-            {"messages", nlohmann::json::array({ { {"role", "user"}, {"content", prompt} } })}
+            {"model", model.empty() ? "grok-2" : model},
+            {"messages", nlohmann::json::array({
+                (!system_prompt_.empty() ? nlohmann::json{{"role", "system"}, {"content", system_prompt_}} : nlohmann::json()),
+                {{"role", "user"}, {"content", prompt}}
+            })}
         };
+        // Remove empty system prompt if not set
+        if (req["messages"][0].empty()) req["messages"].erase(0);
         std::string req_str = req.dump();
 
-        curl_easy_setopt(curl, CURLOPT_URL, "https://api.xai.com/v1/chat/completions");
+        curl_easy_setopt(curl, CURLOPT_URL, "https://api.x.ai/v1/chat/completions");
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req_str.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);

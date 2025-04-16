@@ -1,10 +1,9 @@
 #include "SettingsPanel.hpp"
 #include <curses.h>
-#include "Logger.hpp"
+#include "GlobalLogger.hpp"
 
 void SettingsPanel::draw(WINDOW* win) {
-    static Logger logger_("chatbot.log");
-    logger_.log(Logger::Level::Debug, "SettingsPanel::draw(WINDOW*) called");
+    get_logger().log(Logger::Level::Debug, "SettingsPanel::draw(WINDOW*) called");
     int rows, cols;
     getmaxyx(win, rows, cols);
     int win_width = cols;
