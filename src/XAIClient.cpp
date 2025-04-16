@@ -86,37 +86,26 @@ std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(co
 
         nlohmann::json req = {
             {"model", model.empty() ? "grok-3-beta" : model},
-            {"messages", {
-                { {"role", "system"}, {"content", system_prompt_.empty() ? "You are a chatbot." : system_prompt_} },
-                { {"role", "user"}, {"content", prompt} }
-            }},
-            {"max_tokens", 256}
+            {"messages", nlohmann::json::array({ { {"role", "user"}, {"content", prompt} } })}
         };
         std::string req_str = req.dump();
 
-        curl_easy_setopt(curl, CURLOPT_URL, "https://api.x.ai/v1/chat/completions");
+        curl_easy_setopt(curl, CURLOPT_URL, "https://api.xai.com/v1/chat/completions");
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req_str.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
         CURLcode res = curl_easy_perform(curl);
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-
         if (res != CURLE_OK) {
-            last_error_ = curl_easy_strerror(res);
-            return std::string("[Error: ") + last_error_ + "]";
+            return std::unexpected(ApiErrorInfo{ApiError::NetworkError, curl_easy_strerror(res)});
         }
-
         try {
             auto resp = nlohmann::json::parse(readBuffer);
-            if (resp.contains("choices") && !resp["choices"].empty() && resp["choices"][0].contains("message") && resp["choices"][0]["message"].contains("content")) {
+            if (resp.contains("choices") && resp["choices"].is_array() && !resp["choices"].empty()) {
                 std::string raw = resp["choices"][0]["message"]["content"].get<std::string>();
-                // Sanitize: remove non-printable and invalid UTF-8 chars
                 std::string clean;
-                size_t i = 0;
-                while (i < raw.size()) {
+                for (size_t i = 0; i < raw.size();) {
                     unsigned char c = raw[i];
                     if (c >= 32 && c < 127) {
                         clean += c;
@@ -131,21 +120,17 @@ std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(co
                         clean += raw.substr(i, 4);
                         i += 4;
                     } else {
-                        // Skip invalid byte
                         ++i;
                     }
                 }
                 return clean;
             } else if (resp.contains("error")) {
-                last_error_ = resp["error"].dump();
-                return "[Error: " + last_error_ + "]";
+                return std::unexpected(ApiErrorInfo{ApiError::MalformedResponse, resp["error"].dump()});
             } else {
-                last_error_ = "Malformed response";
-                return "[Error: Malformed response]";
+                return std::unexpected(ApiErrorInfo{ApiError::MalformedResponse, "Malformed response"});
             }
         } catch (const std::exception& e) {
-            last_error_ = e.what();
-            return "[Error: " + last_error_ + "]";
+            return std::unexpected(ApiErrorInfo{ApiError::JsonParseError, e.what()});
         }
     });
 }
@@ -153,8 +138,4 @@ std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(co
 std::vector<std::string> XAIClient::available_models() const {
     // Placeholder for available xAI models
     return {"xai-default", "xai-advanced"};
-}
-
-std::string XAIClient::last_error() const {
-    return last_error_;
 }

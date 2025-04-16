@@ -26,7 +26,7 @@ public:
     NcursesWindow(NcursesWindow&& other) noexcept : win_(other.win_) { other.win_ = nullptr; }
     NcursesWindow& operator=(NcursesWindow&& other) noexcept {
         if (this != &other) {
-            if (win_) delwin(win_);
+            if (win_) { delwin(win_); }
             win_ = other.win_;
             other.win_ = nullptr;
         }

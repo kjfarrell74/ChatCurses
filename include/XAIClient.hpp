@@ -26,6 +26,12 @@ concept AIProvider = requires(T a, const std::string& prompt, const std::string&
     { a.set_model(std::string{}) };
 };
 
+// Structure to hold specific error details
+struct ApiErrorInfo {
+    ApiError code = ApiError::Unknown;
+    std::string details; // e.g., curl error string or exception message
+};
+
 class XAIClient {
 public:
     void send_message_stream(
@@ -49,8 +55,3 @@ private:
     std::string model_;
 };
 
-// Structure to hold specific error details
-struct ApiErrorInfo {
-    ApiError code = ApiError::Unknown;
-    std::string details; // e.g., curl error string or exception message
-};

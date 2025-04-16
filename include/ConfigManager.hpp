@@ -19,6 +19,8 @@ public:
     std::expected<Settings, ConfigError> load();
     // Returns nothing on success, or an error code on failure
     std::expected<void, ConfigError> save(const Settings& settings);
+public:
+    const std::string& config_path() const { return config_path_; }
 private:
     std::string config_path_;
 };

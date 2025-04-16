@@ -32,9 +32,9 @@ public:
         auto load_result = config_manager_.load();
         if (load_result) {
             settings_ = *load_result;
-            logger_.logf(Logger::Level::Info, "Settings loaded successfully from {}", config_manager_.config_path_);
+            LOGF(logger_, Logger::Level::Info, "Settings loaded successfully from {}", config_manager_.config_path());
         } else {
-            logger_.logf(Logger::Level::Error, "Failed to load settings from {}: Error {}", config_manager_.config_path_, static_cast<int>(load_result.error()));
+            LOGF(logger_, Logger::Level::Error, "Failed to load settings from {}: Error {}", config_manager_.config_path(), static_cast<int>(load_result.error()));
         }
         xai_client_.set_api_key(settings_.api_key);
         xai_client_.set_system_prompt(settings_.system_prompt);
@@ -110,7 +110,7 @@ public:
                             [this](const ApiErrorInfo& error) {
                                 std::string error_msg = std::format("[Error {}: {}]", static_cast<int>(error.code), error.details);
                                 message_handler_.append_to_last_ai_message(error_msg, true);
-                                logger_.logf(Logger::Level::Error, "API Error: {} - {}", static_cast<int>(error.code), error.details);
+                                LOGF(logger_, Logger::Level::Error, "API Error: {} - {}", static_cast<int>(error.code), error.details);
                                 waiting_for_ai_ = false;
                                 needs_redraw_ = true;
                             }

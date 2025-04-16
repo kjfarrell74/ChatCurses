@@ -3,9 +3,7 @@
 #include "utf8_utils.hpp"
 
 NCursesUI::NCursesUI() {
-    if (!initscr()) {
-        fprintf(stderr, "Error initializing ncurses.\n");
-    }
+    initscr();
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
@@ -27,7 +25,7 @@ void NCursesUI::init_windows() {
     chat_win_.reset(newwin(rows - input_height, cols, 0, 0));
     input_win_.reset(newwin(input_height, cols, rows - input_height, 0));
     settings_win_.reset(newwin(rows, cols, 0, 0));
-    if (!chat_win_.get() || !input_win_.get() || !settings_win_.get()) {
+    if (!chat_win_ || !input_win_ || !settings_win_) {
         endwin();
         throw std::runtime_error("Failed to create ncurses windows");
     }
@@ -80,7 +78,7 @@ int NCursesUI::draw_chat_window(const std::vector<std::string>& messages, int sc
     int end_line = std::min(start_line + display_lines, total_lines);
     int line = 1;
     for (int i = start_line; i < end_line; ++i, ++line) {
-        if (is_first_line[i] == 2) continue; // skip printing for blank line, just increment line
+        if (is_first_line[i] == 2) { continue; } // skip printing for blank line, just increment line
         
         // Ensure text is printed exactly at column 1 for consistent alignment
         // This ensures the indentation we created actually appears properly
@@ -105,7 +103,7 @@ void NCursesUI::draw_input_window(const std::string& input, int cursor_pos) {
 
 void NCursesUI::draw_settings_panel(bool visible) {
     settings_visible_ = visible;
-    if (!visible) return;
+    if (!visible) { return; }
     werase(settings_win_);
     box(settings_win_, 0, 0);
     mvwprintw(settings_win_, 1, 2, "Settings Panel (stub)");
@@ -115,7 +113,7 @@ void NCursesUI::draw_settings_panel(bool visible) {
 void NCursesUI::refresh_all() {
     wrefresh(chat_win_);
     wrefresh(input_win_);
-    if (settings_visible_) wrefresh(settings_win_);
+    if (settings_visible_) { wrefresh(settings_win_); }
 }
 
 void NCursesUI::toggle_settings_panel() {
@@ -143,4 +141,11 @@ void NCursesUI::show_error(const std::string& message) {
     getmaxyx(stdscr, rows, cols);
     mvprintw(rows - 2, 2, "Error: %s", message.c_str());
     refresh();
+}
+
+void NCursesUI::destroy_windows() {
+    // Cleanup all ncurses windows
+    chat_win_.reset();
+    input_win_.reset();
+    settings_win_.reset();
 }

@@ -28,3 +28,12 @@ target_link_libraries(chatbot PRIVATE ${CURSES_LIBRARIES} Threads::Threads CURL:
 
 # Optionally add spdlog, nlohmann_json, or cpp-httplib if available
 # target_link_libraries(chatbot PRIVATE spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib)
+
+# For modern dependency management, consider using FetchContent for header-only libraries:
+# include(FetchContent)
+# FetchContent_Declare(
+#   nlohmann_json
+#   GIT_REPOSITORY https://github.com/nlohmann/json.git
+#   GIT_TAG v3.11.2
+# )
+# FetchContent_MakeAvailable(nlohmann_json)
