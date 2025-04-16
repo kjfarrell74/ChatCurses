@@ -1,0 +1,3 @@
+/home/kfarrell/Chatbot2/build/CMakeFiles/chatbot.dir
+/home/kfarrell/Chatbot2/build/CMakeFiles/edit_cache.dir
+/home/kfarrell/Chatbot2/build/CMakeFiles/rebuild_cache.dir
