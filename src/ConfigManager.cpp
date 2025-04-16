@@ -16,8 +16,11 @@ std::expected<Settings, ConfigError> ConfigManager::load() {
         Settings settings;
         settings.user_display_name = j.value("user_display_name", "User");
         settings.system_prompt = j.value("system_prompt", "");
-        settings.api_key = j.value("api_key", "");
-        settings.ai_model = j.value("ai_model", "");
+        settings.xai_api_key = j.value("xai_api_key", "");
+        settings.claude_api_key = j.value("claude_api_key", "");
+        settings.openai_api_key = j.value("openai_api_key", "");
+        settings.provider = j.value("provider", "xai");
+        settings.model = j.value("model", settings.provider == "xai" ? "grok-3-beta" : "claude");
         settings.store_chat_history = j.value("store_chat_history", true);
         settings.theme_id = j.value("theme_id", 0);
         return settings;
@@ -36,8 +39,11 @@ std::expected<void, ConfigError> ConfigManager::save(const Settings& settings) {
     nlohmann::json j = {
         {"user_display_name", settings.user_display_name},
         {"system_prompt", settings.system_prompt},
-        {"api_key", settings.api_key},
-        {"ai_model", settings.ai_model},
+        {"xai_api_key", settings.xai_api_key},
+        {"claude_api_key", settings.claude_api_key},
+        {"openai_api_key", settings.openai_api_key},
+        {"provider", settings.provider},
+        {"model", settings.model},
         {"store_chat_history", settings.store_chat_history},
         {"theme_id", settings.theme_id}
     };

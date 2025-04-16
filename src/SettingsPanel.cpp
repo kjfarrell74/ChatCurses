@@ -23,6 +23,10 @@ void SettingsPanel::draw() {
     keypad(win, TRUE);
     int row = 2;
     for (int i = 0; i < (int)FieldType::COUNT; ++i) {
+        // Only show the API key field for the selected provider
+        if ((FieldType)i == FieldType::XaiApiKey && settings_.provider != "xai") continue;
+        if ((FieldType)i == FieldType::ClaudeApiKey && settings_.provider != "claude") continue;
+        if ((FieldType)i == FieldType::OpenaiApiKey && settings_.provider != "openai") continue;
         std::string label, value;
         bool editing = in_edit_mode_ && selected_option_ == i;
         switch ((FieldType)i) {
@@ -34,13 +38,37 @@ void SettingsPanel::draw() {
                 label = "System Prompt";
                 value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.system_prompt;
                 break;
-            case FieldType::ApiKey:
-                label = "API Key";
-                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.api_key.empty() ? "<not set>" : "<hidden>");
+            case FieldType::XaiApiKey:
+                label = "xAI API Key";
+                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.xai_api_key.empty() ? "<not set>" : "<hidden>");
+                break;
+            case FieldType::ClaudeApiKey:
+                label = "Claude API Key";
+                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.claude_api_key.empty() ? "<not set>" : "<hidden>");
+                break;
+            case FieldType::Provider:
+                label = "Provider";
+                if (settings_.provider == "xai") {
+                    value = "xAI";
+                } else if (settings_.provider == "claude") {
+                    value = "Claude";
+                } else if (settings_.provider == "openai") {
+                    value = "OpenAI";
+                } else {
+                    value = settings_.provider;
+                }
                 break;
             case FieldType::Model:
                 label = "Model";
-                value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.ai_model;
+                if (settings_.provider == "xai") {
+                    value = "grok-3-beta";
+                } else if (settings_.provider == "claude") {
+                    value = "claude";
+                } else if (settings_.provider == "openai") {
+                    value = "gpt-4o";
+                } else {
+                    value = settings_.model;
+                }
                 break;
             case FieldType::StoreHistory:
                 label = "Store Chat History";
@@ -53,6 +81,7 @@ void SettingsPanel::draw() {
             default: break;
         }
         draw_option(win, row++, label, value, selected_option_ == i, editing);
+
     }
     box(win, 0, 0);
     mvwprintw(win, win_height - 4, 2, "Use Arrow keys to navigate, Enter to edit, ESC to exit");
@@ -79,11 +108,37 @@ void SettingsPanel::handle_input(int ch) {
                 case FieldType::SystemPrompt:
                     settings_.system_prompt = edit_buffer_;
                     break;
-                case FieldType::ApiKey:
-                    settings_.api_key = edit_buffer_;
+                case FieldType::XaiApiKey:
+                    settings_.xai_api_key = edit_buffer_;
+                    break;
+                case FieldType::ClaudeApiKey:
+                    settings_.claude_api_key = edit_buffer_;
+                    break;
+                case FieldType::OpenaiApiKey:
+                    settings_.openai_api_key = edit_buffer_;
+                    break;
+                case FieldType::Provider:
+                    // Cycle provider
+                    if (settings_.provider == "xai") {
+                        settings_.provider = "claude";
+                        settings_.model = "claude";
+                    } else if (settings_.provider == "claude") {
+                        settings_.provider = "openai";
+                        settings_.model = "gpt-4o";
+                    } else {
+                        settings_.provider = "xai";
+                        settings_.model = "grok-3-beta";
+                    }
                     break;
                 case FieldType::Model:
-                    settings_.ai_model = edit_buffer_;
+                    // Cycle model for current provider (only one option for now)
+                    if (settings_.provider == "xai") {
+                        settings_.model = "grok-3-beta";
+                    } else if (settings_.provider == "claude") {
+                        settings_.model = "claude";
+                    } else if (settings_.provider == "openai") {
+                        settings_.model = "gpt-4o";
+                    }
                     break;
                 default:
                     break;
@@ -132,11 +187,17 @@ void SettingsPanel::handle_input(int ch) {
                     case FieldType::SystemPrompt:
                         edit_buffer_ = settings_.system_prompt;
                         break;
-                    case FieldType::ApiKey:
-                        edit_buffer_ = settings_.api_key;
+                    case FieldType::XaiApiKey:
+                        edit_buffer_ = settings_.xai_api_key;
+                        break;
+                    case FieldType::ClaudeApiKey:
+                        edit_buffer_ = settings_.claude_api_key;
+                        break;
+                    case FieldType::OpenaiApiKey:
+                        edit_buffer_ = settings_.openai_api_key;
                         break;
                     case FieldType::Model:
-                        edit_buffer_ = settings_.ai_model;
+                        edit_buffer_ = settings_.model;
                         break;
                     default:
                         break;
@@ -156,7 +217,7 @@ bool SettingsPanel::is_visible() const {
 }
 
 void SettingsPanel::set_visible(bool visible) {
-    get_logger().log(Logger::Level::Debug, std::string("SettingsPanel::set_visible called with visible = ") + (visible ? "true" : "false"));
+    get_logger().log(LogLevel::Debug, std::string("SettingsPanel::set_visible called with visible = ") + (visible ? "true" : "false"));
     visible_ = visible;
 }
 

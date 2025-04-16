@@ -13,7 +13,9 @@ add_executable(chatbot
     src/ChatbotApp.cpp
     src/NCursesUI.cpp
     src/SettingsPanel.cpp
+    src/ClaudeAIClient.cpp
     src/XAIClient.cpp
+    src/OpenAIClient.cpp
     src/MessageHandler.cpp
     src/CommandLineEditor.cpp
     src/Logger.cpp

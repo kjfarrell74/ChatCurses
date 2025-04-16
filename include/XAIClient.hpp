@@ -1,20 +1,13 @@
 #pragma once
 #include <string>
+#include <nlohmann/json.hpp>
 #include <future>
 #include <vector>
 #include <concepts>
 #include <coroutine>
 #include <expected> // C++23
 #include <functional> // For std::function
-
-enum class ApiError {
-    CurlInitFailed,
-    ApiKeyNotSet,
-    NetworkError, // Contains curl error string
-    JsonParseError, // Contains exception what() string
-    MalformedResponse,
-    Unknown
-};
+#include "AICommon.hpp"
 
 // Concept for AI provider extensibility
 
@@ -26,13 +19,14 @@ concept AIProvider = requires(T a, const std::string& prompt, const std::string&
     { a.set_model(std::string{}) };
 };
 
-// Structure to hold specific error details
-struct ApiErrorInfo {
-    ApiError code = ApiError::Unknown;
-    std::string details; // e.g., curl error string or exception message
-};
 
 class XAIClient {
+public:
+    // Conversation history support
+    void push_user_message(const std::string& content);
+    void push_assistant_message(const std::string& content);
+    void clear_history();
+    nlohmann::json build_message_history(const std::string& latest_user_msg = "") const;
 public:
     void send_message_stream(
         const std::string& prompt,
@@ -54,5 +48,6 @@ private:
     std::string system_prompt_;
     std::string model_;
     mutable std::mutex mutex_;
+    std::vector<nlohmann::json> conversation_history_;
 };
 

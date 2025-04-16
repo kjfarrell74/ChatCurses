@@ -7,8 +7,11 @@
 struct Settings {
     std::string user_display_name;
     std::string system_prompt;
-    std::string api_key;
-    std::string ai_model;
+    std::string xai_api_key;
+    std::string claude_api_key;
+    std::string openai_api_key;
+    std::string provider = "xai"; // New: provider (e.g., "xai", "claude")
+    std::string model = "grok-3-beta"; // New: model (e.g., "grok-3-beta", "claude")
     bool store_chat_history = true;
     int theme_id = 0;
 };
@@ -26,7 +29,7 @@ public:
     void set_visible(bool visible);
     void set_config_manager(ConfigManager* config_manager);
 private:
-    enum class FieldType { DisplayName, SystemPrompt, ApiKey, Model, StoreHistory, Theme, COUNT };
+    enum class FieldType { DisplayName, SystemPrompt, XaiApiKey, ClaudeApiKey, OpenaiApiKey, Provider, Model, StoreHistory, Theme, COUNT };
     Settings& settings_;
     ConfigManager* config_manager_ = nullptr;
     bool visible_ = false;

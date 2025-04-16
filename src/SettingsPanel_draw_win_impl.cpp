@@ -3,7 +3,7 @@
 #include "GlobalLogger.hpp"
 
 void SettingsPanel::draw(WINDOW* win) {
-    get_logger().log(Logger::Level::Debug, "SettingsPanel::draw(WINDOW*) called");
+    get_logger().log(LogLevel::Debug, "SettingsPanel::draw(WINDOW*) called");
     int rows, cols;
     getmaxyx(win, rows, cols);
     int win_width = cols;
@@ -23,13 +23,21 @@ void SettingsPanel::draw(WINDOW* win) {
                 label = "System Prompt";
                 value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.system_prompt;
                 break;
-            case FieldType::ApiKey:
-                label = "API Key";
-                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.api_key.empty() ? "<not set>" : "<hidden>");
+            case FieldType::XaiApiKey:
+                label = "xAI API Key";
+                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.xai_api_key.empty() ? "<not set>" : "<hidden>");
+                break;
+            case FieldType::ClaudeApiKey:
+                label = "Claude API Key";
+                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.claude_api_key.empty() ? "<not set>" : "<hidden>");
+                break;
+            case FieldType::OpenaiApiKey:
+                label = "OpenAI API Key";
+                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.openai_api_key.empty() ? "<not set>" : "<hidden>");
                 break;
             case FieldType::Model:
                 label = "Model";
-                value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.ai_model;
+                value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.model;
                 break;
             case FieldType::StoreHistory:
                 label = "Store Chat History";
