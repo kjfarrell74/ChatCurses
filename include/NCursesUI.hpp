@@ -44,16 +44,16 @@ public:
 
 class NCursesUI {
 public:
-    NCursesUI();
-    ~NCursesUI();
-    int draw_chat_window(const std::vector<std::string>& messages, int scroll_offset, bool waiting_for_ai = false);
-    void draw_input_window(const std::string& input, int cursor_pos);
+    NCursesUI() noexcept;
+    ~NCursesUI() noexcept;
+    [[nodiscard]] int draw_chat_window(const std::vector<std::string_view>& messages, int scroll_offset, bool waiting_for_ai = false);
+    void draw_input_window(std::string_view input, int cursor_pos);
     void draw_settings_panel(bool visible);
     void refresh_all();
     void toggle_settings_panel();
     void set_theme(int theme_id);
     void handle_resize();
-    void show_error(const std::string& message);
+    void show_error(std::string_view message);
     // ... more as needed
 private:
     NcursesWindow chat_win_;

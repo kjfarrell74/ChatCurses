@@ -53,5 +53,6 @@ private:
     std::string api_key_;
     std::string system_prompt_;
     std::string model_;
+    mutable std::mutex mutex_;
 };
 

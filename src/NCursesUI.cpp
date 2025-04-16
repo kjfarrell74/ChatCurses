@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include "utf8_utils.hpp"
 
-NCursesUI::NCursesUI() {
+NCursesUI::NCursesUI() noexcept {
     initscr();
     cbreak();
     noecho();
@@ -13,7 +13,7 @@ NCursesUI::NCursesUI() {
     ::refresh(); // Force initial paint
 }
 
-NCursesUI::~NCursesUI() {
+NCursesUI::~NCursesUI() noexcept {
     // Windows are automatically deleted by NcursesWindow destructors
     endwin();
 }
@@ -22,9 +22,12 @@ void NCursesUI::init_windows() {
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
     int input_height = 3;
-    chat_win_.reset(newwin(rows - input_height, cols, 0, 0));
-    input_win_.reset(newwin(input_height, cols, rows - input_height, 0));
-    settings_win_.reset(newwin(rows, cols, 0, 0));
+    auto chat = newwin(rows - input_height, cols, 0, 0);
+    auto input = newwin(input_height, cols, rows - input_height, 0);
+    auto settings = newwin(rows, cols, 0, 0);
+    chat_win_.reset(chat);
+    input_win_.reset(input);
+    settings_win_.reset(settings);
     if (!chat_win_ || !input_win_ || !settings_win_) {
         endwin();
         throw std::runtime_error("Failed to create ncurses windows");
@@ -32,7 +35,7 @@ void NCursesUI::init_windows() {
 }
 
 
-int NCursesUI::draw_chat_window(const std::vector<std::string>& messages, int scroll_offset, bool waiting_for_ai) {
+[[nodiscard]] int NCursesUI::draw_chat_window(const std::vector<std::string_view>& messages, int scroll_offset, bool waiting_for_ai) {
     werase(chat_win_.get());
     int maxy, maxx;
     getmaxyx(chat_win_.get(), maxy, maxx);
@@ -92,10 +95,10 @@ int NCursesUI::draw_chat_window(const std::vector<std::string>& messages, int sc
     return total_lines;
 }
 
-void NCursesUI::draw_input_window(const std::string& input, int cursor_pos) {
+void NCursesUI::draw_input_window(std::string_view input, int cursor_pos) {
     werase(input_win_);
     box(input_win_, 0, 0);
-    mvwprintw(input_win_, 1, 1, "%s", input.c_str());
+    mvwprintw(input_win_, 1, 1, "%s", input.data());
     // Move the cursor to the logical position
     wmove(input_win_, 1, 1 + cursor_pos);
     wrefresh(input_win_);
@@ -136,10 +139,10 @@ void NCursesUI::handle_resize() {
     // If those are available as member variables, call draw_chat_window here. Otherwise, ensure the main loop triggers a redraw after resize.
 }
 
-void NCursesUI::show_error(const std::string& message) {
+void NCursesUI::show_error(std::string_view message) {
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
-    mvprintw(rows - 2, 2, "Error: %s", message.c_str());
+    mvprintw(rows - 2, 2, "Error: %s", message.data());
     refresh();
 }
 

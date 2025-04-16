@@ -152,12 +152,15 @@ public:
     }
 
     void draw() {
-        std::vector<std::string> lines;
+        std::vector<std::string> raw_lines;
         auto messages = message_handler_.get_messages(0, message_handler_.message_count());
         for (const auto& msg : messages) {
             std::string prefix = (msg.sender == ChatMessage::Sender::User) ? settings_.user_display_name + ": " : "AI: ";
-            lines.push_back(prefix + msg.content);
+            raw_lines.push_back(prefix + msg.content);
         }
+        std::vector<std::string_view> lines;
+        lines.reserve(raw_lines.size());
+        for (const auto& s : raw_lines) lines.push_back(s);
         int total_lines = ui_->draw_chat_window(lines, scroll_offset_, waiting_for_ai_);
         // Clamp scroll_offset_ so we never scroll past start or end
         int maxy, maxx;

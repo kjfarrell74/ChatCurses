@@ -15,15 +15,19 @@ static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* use
 
 XAIClient::XAIClient() {}
 
+
 void XAIClient::set_api_key(const std::string& key) {
+    std::lock_guard lock(mutex_);
     api_key_ = key;
 }
 
 void XAIClient::set_system_prompt(const std::string& prompt) {
+    std::lock_guard lock(mutex_);
     system_prompt_ = prompt;
 }
 
 void XAIClient::set_model(const std::string& model) {
+    std::lock_guard lock(mutex_);
     model_ = model;
 }
 
