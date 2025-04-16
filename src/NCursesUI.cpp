@@ -3,7 +3,9 @@
 #include "utf8_utils.hpp"
 
 NCursesUI::NCursesUI() {
-    if (!initscr()) throw std::runtime_error("Failed to initialize ncurses");
+    if (!initscr()) {
+        fprintf(stderr, "Error initializing ncurses.\n");
+    }
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
@@ -14,7 +16,7 @@ NCursesUI::NCursesUI() {
 }
 
 NCursesUI::~NCursesUI() {
-    destroy_windows();
+    // Windows are automatically deleted by NcursesWindow destructors
     endwin();
 }
 
@@ -22,60 +24,45 @@ void NCursesUI::init_windows() {
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
     int input_height = 3;
-    chat_win_ = newwin(rows - input_height, cols, 0, 0);
-    input_win_ = newwin(input_height, cols, rows - input_height, 0);
-    settings_win_ = newwin(rows, cols, 0, 0);
+    chat_win_.reset(newwin(rows - input_height, cols, 0, 0));
+    input_win_.reset(newwin(input_height, cols, rows - input_height, 0));
+    settings_win_.reset(newwin(rows, cols, 0, 0));
+    if (!chat_win_.get() || !input_win_.get() || !settings_win_.get()) {
+        endwin();
+        throw std::runtime_error("Failed to create ncurses windows");
+    }
 }
 
-void NCursesUI::destroy_windows() {
-    if (chat_win_) delwin(chat_win_);
-    if (input_win_) delwin(input_win_);
-    if (settings_win_) delwin(settings_win_);
-}
 
 int NCursesUI::draw_chat_window(const std::vector<std::string>& messages, int scroll_offset, bool waiting_for_ai) {
-    werase(chat_win_);
+    werase(chat_win_.get());
     int maxy, maxx;
-    getmaxyx(chat_win_, maxy, maxx);
+    getmaxyx(chat_win_.get(), maxy, maxx);
     std::vector<std::string> wrapped_lines;
     std::vector<int> is_first_line;
     
-    // Standard prefix widths for common cases
     for (const auto& msg : messages) {
-        // Determine if this is a user or AI message
-        bool is_user_msg = msg.find("Kieran: ") == 0;
-        bool is_ai_msg = msg.find("AI: ") == 0;
-        
-        // Handle prefix and content
+        bool is_user_msg = msg.starts_with("User: ");
+        bool is_ai_msg = msg.starts_with("AI: ");
         std::string prefix, content;
         int prefix_width;
-        
         if (is_user_msg) {
             prefix = "Kieran: ";
-            content = msg.substr(8); // Skip "Kieran: "
+            content = msg.substr(prefix.length());
         } else if (is_ai_msg) {
             prefix = "AI: ";
-            content = msg.substr(4); // Skip "AI: "
+            content = msg.substr(prefix.length());
         } else {
-            // Handle messages without recognized prefix
             prefix = "";
             content = msg;
         }
-        // Calculate prefix width using utf8_display_width for accuracy
         prefix_width = utf8_display_width(prefix);
-        // Calculate available width for content
-        int available_width = maxx - 2 - prefix_width; // 2 for borders
-        // Create fixed indentation string based on the prefix width
+        int available_width = maxx - 2 - prefix_width;
         std::string indent(prefix_width, ' ');
-        // Wrap content to available width, indent for wrapped lines
         auto lines = utf8_word_wrap(content, available_width, prefix_width);
-        
-        // Add first line with prefix
         if (!lines.empty()) {
             wrapped_lines.push_back(prefix + lines[0]);
             is_first_line.push_back(1);
-            
-            // Add remaining lines (already indented by utf8_word_wrap)
             for (size_t i = 1; i < lines.size(); ++i) {
                 wrapped_lines.push_back(lines[i]);
                 is_first_line.push_back(0);

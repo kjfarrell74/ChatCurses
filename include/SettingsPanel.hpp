@@ -33,5 +33,4 @@ private:
     bool in_edit_mode_ = false;
     std::string edit_buffer_;
     void draw_option(WINDOW* win, int row, const std::string& label, const std::string& value, bool selected, bool editing);
-    void save_settings();
 };

@@ -14,12 +14,12 @@ void SettingsPanel::set_config_manager(ConfigManager* config_manager) {
 void SettingsPanel::draw() {
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
-    int win_width = cols * 2 / 3;
-    int win_height = 14;
+    int win_width = std::max(40, cols * 2 / 3);
+    int win_height = std::min(rows - 2, 14);
     int startx = (cols - win_width) / 2;
     int starty = (rows - win_height) / 2;
     WINDOW* win = newwin(win_height, win_width, starty, startx);
-    box(win, 0, 0);
+    keypad(win, TRUE);
     int row = 2;
     for (int i = 0; i < (int)FieldType::COUNT; ++i) {
         std::string label, value;
@@ -53,6 +53,7 @@ void SettingsPanel::draw() {
         }
         draw_option(win, row++, label, value, selected_option_ == i, editing);
     }
+    box(win, 0, 0);
     mvwprintw(win, win_height - 4, 2, "Use Arrow keys to navigate, Enter to edit, ESC to exit");
     if (in_edit_mode_) {
         mvwprintw(win, win_height - 3, 2, "Type to edit, Enter to save, ESC to cancel");
@@ -86,7 +87,10 @@ void SettingsPanel::handle_input(int ch) {
                 default:
                     break;
             }
-            if (config_manager_) config_manager_->save(settings_);
+            if (config_manager_) {
+                auto result = config_manager_->save(settings_);
+                if (!result) { /* Log or display error */ }
+            }
             in_edit_mode_ = false;
             edit_buffer_.clear();
             return;
@@ -108,10 +112,16 @@ void SettingsPanel::handle_input(int ch) {
         case KEY_ENTER:
             if (selected_option_ == (int)FieldType::StoreHistory) {
                 settings_.store_chat_history = !settings_.store_chat_history;
-                if (config_manager_) config_manager_->save(settings_);
+                if (config_manager_) {
+                    auto result = config_manager_->save(settings_);
+                    if (!result) { /* Log or display error */ }
+                }
             } else if (selected_option_ == (int)FieldType::Theme) {
                 settings_.theme_id = (settings_.theme_id + 1) % 4; // Example: 4 themes
-                if (config_manager_) config_manager_->save(settings_);
+                if (config_manager_) {
+                    auto result = config_manager_->save(settings_);
+                    if (!result) { /* Log or display error */ }
+                }
             } else {
                 in_edit_mode_ = true;
                 switch ((FieldType)selected_option_) {
@@ -148,12 +158,14 @@ void SettingsPanel::set_visible(bool visible) {
     visible_ = visible;
 }
 
-void SettingsPanel::draw_option(WINDOW* win, int row, const std::string& label, const std::string& value, bool selected, bool editing) {
+void SettingsPanel::draw_option(WINDOW* win, int row, const std::string& label, const std::string& value, bool selected, bool editing)
+{
     int attr = A_NORMAL;
     if (selected) attr |= A_REVERSE;
     if (editing) attr |= A_BOLD;
+    wmove(win, row, 2);
+    wclrtoeol(win);
     wattron(win, attr);
-    mvwprintw(win, row, 4, "%s: %s", label.c_str(), value.c_str());
+    mvwprintw(win, row, 2, " %s: %s ", label.c_str(), value.c_str()); // Add padding
     wattroff(win, attr);
 }
-

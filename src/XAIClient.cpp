@@ -30,51 +30,59 @@ void XAIClient::set_model(const std::string& model) {
 void XAIClient::send_message_stream(
     const std::string& prompt,
     const std::string& model,
-    std::function<void(const std::string& chunk, bool is_last_chunk)> on_chunk,
-    std::function<void()> on_done)
+    std::function<void(const std::string& chunk, bool is_last_chunk)> on_chunk_cb,
+    std::function<void()> on_done_cb,
+    std::function<void(const ApiErrorInfo& error)> on_error_cb)
 {
-    std::thread([=]() {
-        std::string response = this->send_message(prompt, model).get();
-        size_t pos = 0;
-        const size_t min_chunk_size = 40;
-        while (pos < response.size()) {
-            // Find a chunk boundary at a space or end of string, but not splitting a UTF-8 character
-            size_t chunk_end = pos + min_chunk_size;
-            if (chunk_end >= response.size()) chunk_end = response.size();
-            else {
-                // Backtrack to last space (word boundary) within chunk
-                size_t space = response.rfind(' ', chunk_end);
-                if (space != std::string::npos && space > pos) chunk_end = space + 1;
-                // Backtrack to valid UTF-8 boundary
-                while (chunk_end > pos && (response[chunk_end] & 0xC0) == 0x80) --chunk_end;
-                if (chunk_end == pos) chunk_end = pos + min_chunk_size; // fallback: force progress
+    std::jthread([this, prompt, model, on_chunk_cb, on_done_cb, on_error_cb]() {
+        std::future<std::expected<std::string, ApiErrorInfo>> future_result = this->send_message(prompt, model);
+        std::expected<std::string, ApiErrorInfo> result = future_result.get();
+        if (result) {
+            const std::string& response = *result;
+            size_t pos = 0;
+            const size_t min_chunk_size = 40;
+            while (pos < response.size()) {
+                size_t chunk_end = pos + min_chunk_size;
+                if (chunk_end >= response.size()) {
+                    chunk_end = response.size();
+                } else {
+                    size_t space = response.rfind(' ', chunk_end);
+                    if (space != std::string::npos && space > pos) {
+                        chunk_end = space + 1;
+                    }
+                }
+                std::string chunk = response.substr(pos, chunk_end - pos);
+                bool is_last_chunk = (chunk_end >= response.size());
+                on_chunk_cb(chunk, is_last_chunk);
+                pos = chunk_end;
+                std::this_thread::sleep_for(std::chrono::milliseconds(40));
             }
-            std::string chunk = response.substr(pos, chunk_end - pos);
-            bool is_last_chunk = (chunk_end >= response.size());
-            on_chunk(chunk, is_last_chunk);
-            pos = chunk_end;
-            std::this_thread::sleep_for(std::chrono::milliseconds(40));
+            on_done_cb();
+        } else {
+            on_error_cb(result.error());
         }
-        on_done();
     }).detach();
 }
 
-std::future<std::string> XAIClient::send_message(const std::string& prompt, const std::string& model) {
-    // Placeholder: simulate async xAI API call
-    return std::async(std::launch::async, [this, prompt, model]() -> std::string {
+std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(const std::string& prompt, const std::string& model) {
+    return std::async(std::launch::async, [this, prompt, model]() -> std::expected<std::string, ApiErrorInfo> {
         if (api_key_.empty()) {
-            last_error_ = "API key not set";
-            return "[Error: API key not set]";
+            return std::unexpected(ApiErrorInfo{ApiError::ApiKeyNotSet, "API key is required but not set."});
         }
         CURL* curl = curl_easy_init();
         if (!curl) {
-            last_error_ = "Failed to initialize CURL";
-            return "[Error: CURL init failed]";
+            return std::unexpected(ApiErrorInfo{ApiError::CurlInitFailed, "Failed to initialize CURL handle."});
         }
+        // RAII for curl handle and slist
+        auto curl_cleanup = [](CURL* c){ if(c) curl_easy_cleanup(c); };
+        std::unique_ptr<CURL, decltype(curl_cleanup)> curl_ptr(curl, curl_cleanup);
+        auto slist_cleanup = [](curl_slist* s){ if(s) curl_slist_free_all(s); };
+        std::unique_ptr<curl_slist, decltype(slist_cleanup)> headers_ptr(nullptr, slist_cleanup);
         std::string readBuffer;
         struct curl_slist* headers = nullptr;
         headers = curl_slist_append(headers, ("Authorization: Bearer " + api_key_).c_str());
         headers = curl_slist_append(headers, "Content-Type: application/json");
+        headers_ptr.reset(headers);
 
         nlohmann::json req = {
             {"model", model.empty() ? "grok-3-beta" : model},

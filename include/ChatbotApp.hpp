@@ -4,8 +4,6 @@
 
 class ChatbotAppImpl; // Forward declaration
 
-class ChatbotAppImpl; // Forward declaration
-
 class ChatbotApp {
 public:
     ChatbotApp();

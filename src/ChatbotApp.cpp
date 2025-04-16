@@ -27,8 +27,15 @@ public:
           config_manager_("chatbot_config.json"),
           settings_panel_(settings_, &config_manager_),
           running_(true),
-          scroll_offset_(0) {
-        config_manager_.load(settings_);
+          scroll_offset_(0)
+    {
+        auto load_result = config_manager_.load();
+        if (load_result) {
+            settings_ = *load_result;
+            logger_.logf(Logger::Level::Info, "Settings loaded successfully from {}", config_manager_.config_path_);
+        } else {
+            logger_.logf(Logger::Level::Error, "Failed to load settings from {}: Error {}", config_manager_.config_path_, static_cast<int>(load_result.error()));
+        }
         xai_client_.set_api_key(settings_.api_key);
         xai_client_.set_system_prompt(settings_.system_prompt);
         xai_client_.set_model(settings_.ai_model);
@@ -38,7 +45,8 @@ public:
     }
 
     void run() {
-        timeout(100); // Make getch() non-blocking with 100ms timeout
+        constexpr int kGetchTimeoutMs = 100;
+        timeout(kGetchTimeoutMs); // Make getch() non-blocking
         int last_message_count = message_handler_.message_count();
         draw();
         while (running_) {
@@ -71,10 +79,10 @@ public:
                     settings_panel_.set_visible(!settings_panel_.is_visible());
                     break;
                 case KEY_UP:
-                    scroll_offset_ = std::min(scroll_offset_ + 1, std::max(0, message_handler_.message_count() - 1));
+                    scroll_offset_++; // We'll clamp it later in draw()
                     break;
                 case KEY_DOWN:
-                    scroll_offset_ = std::max(0, scroll_offset_ - 1);
+                    scroll_offset_--; // Clamp later
                     break;
                 case 10: // Enter
                 case KEY_ENTER:
@@ -84,17 +92,25 @@ public:
                         message_handler_.push_message({ChatMessage::Sender::User, input});
                         input_editor_.add_history(input);
                         input_editor_.clear();
-                        // Async send to xAI
-                        std::string prompt = input;
                         waiting_for_ai_ = true;
-                        message_handler_.push_message({ChatMessage::Sender::AI, ""});
+                        needs_redraw_ = true; // Show waiting indicator immediately
+                        message_handler_.push_message({ChatMessage::Sender::AI, ""}); // Add placeholder for AI response
+                        std::string prompt = input;
+                        std::string model_to_use = settings_.ai_model.empty() ? "grok-3-beta" : settings_.ai_model; // Use default if not set
                         xai_client_.send_message_stream(
-                            prompt, settings_.ai_model,
+                            prompt, model_to_use,
                             [this](const std::string& chunk, bool is_last_chunk) {
                                 message_handler_.append_to_last_ai_message(chunk, is_last_chunk);
                                 needs_redraw_ = true;
                             },
                             [this]() {
+                                waiting_for_ai_ = false;
+                                needs_redraw_ = true;
+                            },
+                            [this](const ApiErrorInfo& error) {
+                                std::string error_msg = std::format("[Error {}: {}]", static_cast<int>(error.code), error.details);
+                                message_handler_.append_to_last_ai_message(error_msg, true);
+                                logger_.logf(Logger::Level::Error, "API Error: {} - {}", static_cast<int>(error.code), error.details);
                                 waiting_for_ai_ = false;
                                 needs_redraw_ = true;
                             }
