@@ -32,7 +32,8 @@ For simple MCP protocol experiments, a small reference server is provided in
 `hello_mcp_server.py`. It exposes a single `hello_world` tool and supports the
 `initialize`, `tools/list`, and `tools/call` methods.
 
-Run the server on port `9090`:
+The server reads its host and port from `mcp_server_config.json`. By default it
+listens on `localhost:9090`.
 
 ```bash
 python3 hello_mcp_server.py

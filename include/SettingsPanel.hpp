@@ -18,6 +18,7 @@ struct Settings {
     int theme_id = 0;
     std::string mcp_server_url;
     std::string scrapex_server_url;
+    std::map<std::string, std::string> mcp_servers;
 
     // Returns the display name for the current provider
     std::string get_display_provider() const {
