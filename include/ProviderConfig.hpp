@@ -75,6 +75,8 @@ private:
             "claude", "Claude", "claude", std::vector<std::string>{"claude", "claude-3-opus-20240229", "claude-3-sonnet-20240229"}, "claude_api_key");
         providers_["openai"] = std::make_unique<ProviderConfig>(
             "openai", "OpenAI", "gpt-4o", std::vector<std::string>{"gpt-4o", "gpt-4", "gpt-3.5-turbo"}, "openai_api_key");
+        providers_["mcp"] = std::make_unique<ProviderConfig>(
+            "mcp", "MCP Server", "default", std::vector<std::string>{"default"}, "mcp_server_url");
     }
     ProviderRegistry(const ProviderRegistry&) = delete;
     ProviderRegistry& operator=(const ProviderRegistry&) = delete;

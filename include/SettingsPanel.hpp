@@ -15,6 +15,7 @@ struct Settings {
     std::string model = "grok-3-beta";
     bool store_chat_history = true;
     int theme_id = 0;
+    std::string mcp_server_url;
 
     // Returns the display name for the current provider
     std::string get_display_provider() const {
@@ -49,7 +50,7 @@ public:
     void set_visible(bool visible);
     void set_config_manager(ConfigManager* config_manager);
 private:
-    enum class FieldType { DisplayName, SystemPrompt, XaiApiKey, ClaudeApiKey, OpenaiApiKey, Provider, Model, StoreHistory, Theme, COUNT };
+    enum class FieldType { DisplayName, SystemPrompt, XaiApiKey, ClaudeApiKey, OpenaiApiKey, Provider, Model, MCPServerUrl, StoreHistory, Theme, COUNT };
     Settings& settings_;
     ConfigManager* config_manager_ = nullptr;
     bool visible_ = false;

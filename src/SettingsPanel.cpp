@@ -55,6 +55,7 @@ void SettingsPanel::draw(WINDOW* win) {
         if ((FieldType)i == FieldType::XaiApiKey && api_key_field != "xai_api_key") continue;
         if ((FieldType)i == FieldType::ClaudeApiKey && api_key_field != "claude_api_key") continue;
         if ((FieldType)i == FieldType::OpenaiApiKey && api_key_field != "openai_api_key") continue;
+        if ((FieldType)i == FieldType::MCPServerUrl && settings_.provider != "mcp") continue;
 
         std::string label, value;
         bool editing = in_edit_mode_ && selected_option_ == i;
@@ -114,6 +115,10 @@ void SettingsPanel::draw(WINDOW* win) {
                 label = "Theme";
                 value = std::to_string(settings_.theme_id);
                 break;
+            case FieldType::MCPServerUrl:
+                label = "MCP Server URL";
+                value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.mcp_server_url;
+                break;
             default: break;
         }
         draw_option(win, row++, label, value, selected_option_ == i, editing);
@@ -167,6 +172,9 @@ void SettingsPanel::handle_input(int ch) {
                     break;
                 case FieldType::Model:
                     settings_.model = edit_buffer_;
+                    break;
+                case FieldType::MCPServerUrl:
+                    settings_.mcp_server_url = edit_buffer_;
                     break;
                 default:
                     break;
@@ -277,6 +285,9 @@ void SettingsPanel::handle_input(int ch) {
                         break;
                     case FieldType::Model:
                         edit_buffer_ = settings_.model;
+                        break;
+                    case FieldType::MCPServerUrl:
+                        edit_buffer_ = settings_.mcp_server_url;
                         break;
                     default:
                         break;

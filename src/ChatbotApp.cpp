@@ -11,6 +11,7 @@
 #include "ConfigManager.hpp"
 #include "SignalHandler.hpp"
 #include "utf8_utils.hpp"
+#include "MCPClient.hpp"
 
 #include <atomic>
 #include <vector>
@@ -25,6 +26,7 @@ class ChatbotAppImpl {
 private:
     ClaudeAIClient claude_client_;
     OpenAIClient openai_client_;
+    MCPClient mcp_client_;
 
 public:
     std::atomic<bool> needs_redraw_{false};
@@ -34,7 +36,8 @@ public:
         : config_manager_("chatbot_config.json"),
           settings_panel_(settings_, &config_manager_),
           running_(true),
-          scroll_offset_(0)
+          scroll_offset_(0),
+          mcp_client_("ws://localhost:3000")
     {
         auto load_result = config_manager_.load();
         if (load_result) {
@@ -186,6 +189,31 @@ public:
                                     needs_redraw_ = true;
                                 }
                             );
+                        } else if (settings_.provider == "mcp") {
+                            // If the MCP server URL is local and the user wants Scrapex, launch the bridge
+                            if (settings_.mcp_server_url == "ws://localhost:8080") {
+                                mcp_client_.launch_websocketd_bridge("python3 /home/kfarrell/mcp-servers/scrapex-server/main.py", 8080);
+                            }
+                            mcp_client_.set_server_url(settings_.mcp_server_url);
+                            mcp_client_.set_api_key(settings_.get_api_key());
+                            mcp_client_.set_model(model_to_use);
+                            mcp_client_.push_user_message(input);
+                            auto messages = mcp_client_.build_message_history();
+                            std::thread([this, messages, model_to_use]() {
+                                auto fut = mcp_client_.send_message(messages, model_to_use);
+                                auto result = fut.get();
+                                if (result) {
+                                    std::string reply = *result;
+                                    message_handler_.append_to_last_ai_message(reply, true);
+                                    mcp_client_.push_assistant_message(reply);
+                                } else {
+                                    auto error = result.error();
+                                    std::string error_msg = std::format("[MCP Error {}: {}]", static_cast<int>(error.code), error.message);
+                                    message_handler_.append_to_last_ai_message(error_msg, true);
+                                }
+                                waiting_for_ai_ = false;
+                                needs_redraw_ = true;
+                            }).detach();
                         }
                     }
                     break;

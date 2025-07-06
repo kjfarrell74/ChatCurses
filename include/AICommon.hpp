@@ -11,7 +11,17 @@ enum class ApiError {
     JsonParseError,    // For xAI
     CurlRequestFailed, // For OpenAI
     MalformedResponse,
-    Unknown
+    Unknown,
+    // MCP-specific errors
+    InvalidRequest,
+    MethodNotFound,
+    InvalidParams,
+    InternalError,
+    FeatureNotSupported,
+    InvalidResponse,
+    InvalidState,
+    ConnectionError,
+    Timeout
 };
 
 struct ApiErrorInfo {
