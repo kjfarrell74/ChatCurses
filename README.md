@@ -27,4 +27,25 @@ cmake --build build
 ./build/chatbot
 ```
 
-Whether you want a personal AI assistant in your terminal or a foundation for advanced chatbot development, ChatCurses provides a solid, modern C++ base.
+### Test MCP Server
+For simple MCP protocol experiments, a small reference server is provided in
+`hello_mcp_server.py`. It exposes a single `hello_world` tool and supports the
+`initialize`, `tools/list`, and `tools/call` methods.
+
+The server reads its host and port from `mcp_server_config.json`. By default it
+listens on `localhost:9090`.
+
+```bash
+python3 hello_mcp_server.py
+```
+
+Then execute the client test script:
+
+```bash
+python3 test_mcp_direct.py
+```
+
+This should print the initialization handshake and list the `hello_world` tool.
+
+Whether you want a personal AI assistant in your terminal or a foundation for
+advanced chatbot development, ChatCurses provides a solid, modern C++ base.

@@ -75,6 +75,12 @@ public:
             get_logger().log(LogLevel::Info, std::format("MCP service configured for: {}", settings_.mcp_server_url));
         }
 
+        if (!settings_.mcp_servers.empty()) {
+            for (const auto& [name, url] : settings_.mcp_servers) {
+                get_logger().log(LogLevel::Info, std::format("MCP server from config - {}: {}", name, url));
+            }
+        }
+
         // Initialize Scrapex service if configured
         if (!settings_.scrapex_server_url.empty()) {
             MCPService::instance().configure(settings_.scrapex_server_url);

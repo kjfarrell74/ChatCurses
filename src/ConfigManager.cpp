@@ -26,6 +26,11 @@ std::expected<Settings, ConfigError> ConfigManager::load() {
         settings.theme_id = j.value("theme_id", 0);
         settings.mcp_server_url = j.value("mcp_server_url", "ws://localhost:9092");
         settings.scrapex_server_url = j.value("scrapex_server_url", "ws://localhost:9093");
+        if (j.contains("mcp_servers") && j["mcp_servers"].is_object()) {
+            for (auto& [name, url] : j["mcp_servers"].items()) {
+                if (url.is_string()) settings.mcp_servers[name] = url.get<std::string>();
+            }
+        }
         return settings;
     } catch (const nlohmann::json::parse_error& e) {
         return std::unexpected(ConfigError::JsonParseError);
@@ -51,7 +56,8 @@ std::expected<void, ConfigError> ConfigManager::save(const Settings& settings) {
         {"store_chat_history", settings.store_chat_history},
         {"theme_id", settings.theme_id},
         {"mcp_server_url", settings.mcp_server_url},
-        {"scrapex_server_url", settings.scrapex_server_url}
+        {"scrapex_server_url", settings.scrapex_server_url},
+        {"mcp_servers", settings.mcp_servers}
     };
     try {
         ofs << j.dump(2);
