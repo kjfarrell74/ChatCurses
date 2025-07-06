@@ -3,6 +3,7 @@
 #include <cwchar>
 #include <limits>
 #include <locale>
+#include <cstdint>
 #include <vector>
 #include <string>
 #include <sstream>
