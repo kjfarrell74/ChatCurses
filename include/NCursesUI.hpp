@@ -54,6 +54,7 @@ public:
     void set_theme(int theme_id);
     void handle_resize();
     void show_error(std::string_view message);
+    void show_mcp_activity(std::string_view activity_message);
     WINDOW* get_settings_win() const { return settings_win_.get(); }
 private:
     NcursesWindow chat_win_;
@@ -61,6 +62,7 @@ private:
     NcursesWindow settings_win_; 
     bool settings_visible_ = false;
     int theme_id_ = 0;
+    std::string current_mcp_activity_;
     void init_windows();
     void destroy_windows();
 };

@@ -5,6 +5,7 @@
 #include "XAIClient.hpp"
 #include "ClaudeAIClient.hpp"
 #include "OpenAIClient.hpp"
+#include "GeminiAIClient.hpp"
 #include "MessageHandler.hpp"
 #include "CommandLineEditor.hpp"
 #include "GlobalLogger.hpp"
@@ -12,6 +13,8 @@
 #include "SignalHandler.hpp"
 #include "utf8_utils.hpp"
 #include "MCPClient.hpp"
+#include "MCPService.hpp"
+#include "MCPNotificationInterface.hpp"
 
 #include <atomic>
 #include <vector>
@@ -26,7 +29,7 @@ class ChatbotAppImpl {
 private:
     ClaudeAIClient claude_client_;
     OpenAIClient openai_client_;
-    MCPClient mcp_client_;
+    GeminiAIClient gemini_client_;
 
 public:
     std::atomic<bool> needs_redraw_{false};
@@ -36,8 +39,7 @@ public:
         : config_manager_("chatbot_config.json"),
           settings_panel_(settings_, &config_manager_),
           running_(true),
-          scroll_offset_(0),
-          mcp_client_("ws://localhost:3000")
+          scroll_offset_(0)
     {
         auto load_result = config_manager_.load();
         if (load_result) {
@@ -62,9 +64,63 @@ public:
         openai_client_.set_model(ProviderRegistry::instance().default_model("openai"));
         openai_client_.clear_history();
 
+        gemini_client_.set_api_key(settings_.gemini_api_key);
+        gemini_client_.set_system_prompt(settings_.system_prompt);
+        gemini_client_.set_model(ProviderRegistry::instance().default_model("gemini"));
+        gemini_client_.clear_history();
+
+        // Initialize MCP service if configured
+        if (!settings_.mcp_server_url.empty()) {
+            MCPService::instance().configure(settings_.mcp_server_url);
+            get_logger().log(LogLevel::Info, std::format("MCP service configured for: {}", settings_.mcp_server_url));
+        }
+
+        // Initialize Scrapex service if configured
+        if (!settings_.scrapex_server_url.empty()) {
+            MCPService::instance().configure(settings_.scrapex_server_url);
+            get_logger().log(LogLevel::Info, std::format("Scrapex service configured for: {}", settings_.scrapex_server_url));
+        }
+
         SignalHandler::setup([this]() { on_exit(); });
         ui_ = std::make_unique<NCursesUI>();
         settings_panel_.set_visible(false);
+        
+        // Setup MCP notifications
+        setup_mcp_notifications();
+    }
+
+    void setup_mcp_notifications() {
+        // Set up callbacks for MCP activity notifications
+        mcp_notifier_.set_activity_callback([this](const std::string& activity) {
+            if (ui_) {
+                ui_->show_mcp_activity(activity);
+                needs_redraw_ = true;
+            }
+        });
+        
+        mcp_notifier_.set_tool_call_start_callback([this](const std::string& tool_name, const nlohmann::json& args) {
+            if (ui_) {
+                ui_->show_mcp_activity(std::format("Calling tool: {}", tool_name));
+                needs_redraw_ = true;
+            }
+        });
+        
+        mcp_notifier_.set_tool_call_success_callback([this](const std::string& tool_name, const nlohmann::json& result) {
+            if (ui_) {
+                ui_->show_mcp_activity(std::format("Tool {} completed", tool_name));
+                needs_redraw_ = true;
+            }
+        });
+        
+        mcp_notifier_.set_tool_call_error_callback([this](const std::string& tool_name, const std::string& error) {
+            if (ui_) {
+                ui_->show_mcp_activity(std::format("Tool {} failed: {}", tool_name, error));
+                needs_redraw_ = true;
+            }
+        });
+        
+        // Register the notifier with MCP service
+        MCPService::instance().set_notification_interface(&mcp_notifier_);
     }
 
     void run() {
@@ -189,26 +245,21 @@ public:
                                     needs_redraw_ = true;
                                 }
                             );
-                        } else if (settings_.provider == "mcp") {
-                            // If the MCP server URL is local and the user wants Scrapex, launch the bridge
-                            if (settings_.mcp_server_url == "ws://localhost:8080") {
-                                mcp_client_.launch_websocketd_bridge("python3 /home/kfarrell/mcp-servers/scrapex-server/main.py", 8080);
-                            }
-                            mcp_client_.set_server_url(settings_.mcp_server_url);
-                            mcp_client_.set_api_key(settings_.get_api_key());
-                            mcp_client_.set_model(model_to_use);
-                            mcp_client_.push_user_message(input);
-                            auto messages = mcp_client_.build_message_history();
+                        } else if (settings_.provider == "gemini") {
+                            gemini_client_.set_api_key(settings_.gemini_api_key);
+                            gemini_client_.set_model(model_to_use);
+                            gemini_client_.push_user_message(input);
+                            auto messages = gemini_client_.build_message_history("");
                             std::thread([this, messages, model_to_use]() {
-                                auto fut = mcp_client_.send_message(messages, model_to_use);
+                                auto fut = gemini_client_.send_message(messages, model_to_use);
                                 auto result = fut.get();
                                 if (result) {
                                     std::string reply = *result;
                                     message_handler_.append_to_last_ai_message(reply, true);
-                                    mcp_client_.push_assistant_message(reply);
+                                    gemini_client_.push_assistant_message(reply);
                                 } else {
                                     auto error = result.error();
-                                    std::string error_msg = std::format("[MCP Error {}: {}]", static_cast<int>(error.code), error.message);
+                                    std::string error_msg = std::format("[Gemini Error {}: {}]", static_cast<int>(error.code), error.message);
                                     message_handler_.append_to_last_ai_message(error_msg, true);
                                 }
                                 waiting_for_ai_ = false;
@@ -307,6 +358,7 @@ private:
     std::unique_ptr<NCursesUI> ui_;
     std::atomic<bool> running_;
     int scroll_offset_;
+    MCPCallbackNotifier mcp_notifier_;
 };
 
 ChatbotApp::ChatbotApp() : impl_(std::make_unique<ChatbotAppImpl>()) {}

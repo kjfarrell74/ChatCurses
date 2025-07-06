@@ -4,10 +4,16 @@
 #include <ixwebsocket/IXWebSocket.h>
 #include <sstream>
 #include <format>
+#include "MCPResourceManager.hpp"
+#include "MCPToolManager.hpp"
+#include "MCPPromptManager.hpp"
 
 MCPClient::MCPClient(const std::string& server_url)
     : server_url_(server_url) {
     ws_ = std::make_unique<ix::WebSocket>();
+    resource_manager_ = std::make_unique<MCPResourceManager>(this);
+    tool_manager_ = std::make_unique<MCPToolManager>(this);
+    prompt_manager_ = std::make_unique<MCPPromptManager>(this);
     setup_websocket();
 }
 
@@ -19,6 +25,9 @@ MCPClient::~MCPClient() {
     if (bridge_thread_.joinable()) {
         bridge_thread_.join();
     }
+    resource_manager_.reset();
+    tool_manager_.reset();
+    prompt_manager_.reset();
 }
 
 // AIClientInterface implementation
@@ -323,6 +332,7 @@ std::future<std::expected<MCPResponse, ApiErrorInfo>> MCPClient::send_request(
         auto message_json = request.to_json();
         std::string message_str = message_json.dump();
         
+        get_logger().log(LogLevel::Debug, std::format("MCPClient::send_request - Sending: {}", message_str));
         ws_->send(message_str);
         
         // Wait for response
@@ -336,7 +346,9 @@ std::future<std::expected<MCPResponse, ApiErrorInfo>> MCPClient::send_request(
             });
         }
         
-        return response_future.get();
+        auto response = response_future.get();
+        get_logger().log(LogLevel::Debug, std::format("MCPClient::send_request - Response: {}", response.to_json().dump()));
+        return response;
     });
 }
 
@@ -395,11 +407,11 @@ void MCPClient::handle_notification(const MCPNotification& notification) {
     
     // Handle specific notifications
     if (notification.method == MCPMethods::RESOURCES_LIST_CHANGED) {
-        // Handle resource list changes
+        if (resource_manager_) resource_manager_->handle_list_changed_notification();
     } else if (notification.method == MCPMethods::TOOLS_LIST_CHANGED) {
-        // Handle tool list changes
+        if (tool_manager_) tool_manager_->handle_list_changed_notification();
     } else if (notification.method == MCPMethods::PROMPTS_LIST_CHANGED) {
-        // Handle prompt list changes
+        if (prompt_manager_) prompt_manager_->handle_list_changed_notification();
     }
 }
 

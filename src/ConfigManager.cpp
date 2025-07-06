@@ -19,11 +19,13 @@ std::expected<Settings, ConfigError> ConfigManager::load() {
         settings.xai_api_key = j.value("xai_api_key", "");
         settings.claude_api_key = j.value("claude_api_key", "");
         settings.openai_api_key = j.value("openai_api_key", "");
+        settings.gemini_api_key = j.value("gemini_api_key", "");
         settings.provider = j.value("provider", "xai");
         settings.model = j.value("model", settings.provider == "xai" ? "grok-3-beta" : "claude");
         settings.store_chat_history = j.value("store_chat_history", true);
         settings.theme_id = j.value("theme_id", 0);
-        settings.mcp_server_url = j.value("mcp_server_url", "ws://localhost:3000");
+        settings.mcp_server_url = j.value("mcp_server_url", "ws://localhost:9092");
+        settings.scrapex_server_url = j.value("scrapex_server_url", "ws://localhost:9093");
         return settings;
     } catch (const nlohmann::json::parse_error& e) {
         return std::unexpected(ConfigError::JsonParseError);
@@ -43,11 +45,13 @@ std::expected<void, ConfigError> ConfigManager::save(const Settings& settings) {
         {"xai_api_key", settings.xai_api_key},
         {"claude_api_key", settings.claude_api_key},
         {"openai_api_key", settings.openai_api_key},
+        {"gemini_api_key", settings.gemini_api_key},
         {"provider", settings.provider},
         {"model", settings.model},
         {"store_chat_history", settings.store_chat_history},
         {"theme_id", settings.theme_id},
-        {"mcp_server_url", settings.mcp_server_url}
+        {"mcp_server_url", settings.mcp_server_url},
+        {"scrapex_server_url", settings.scrapex_server_url}
     };
     try {
         ofs << j.dump(2);

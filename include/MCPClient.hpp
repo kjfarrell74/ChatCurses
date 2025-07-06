@@ -12,6 +12,9 @@
 #include <unordered_map>
 #include <condition_variable>
 #include <chrono>
+#include "MCPResourceManager.hpp"
+#include "MCPToolManager.hpp"
+#include "MCPPromptManager.hpp"
 
 class MCPClient : public AIClientInterface {
 public:
@@ -50,6 +53,16 @@ public:
     
     // Get server capabilities after successful connection
     std::optional<MCPCapabilities> get_server_capabilities() const;
+
+    MCPResourceManager* resource_manager() { return resource_manager_.get(); }
+    MCPToolManager* tool_manager() { return tool_manager_.get(); }
+    MCPPromptManager* prompt_manager() { return prompt_manager_.get(); }
+
+    // Allow managers to send requests
+    std::future<std::expected<MCPResponse, ApiErrorInfo>> send_request_for_manager(const MCPRequest& request, 
+                                                                                   std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)) {
+        return send_request(request, timeout);
+    }
 
 private:
     // Core MCP protocol methods
@@ -98,4 +111,8 @@ private:
     // Helper methods
     std::string message_id_to_string(const MCPMessageId& id) const;
     ApiErrorInfo mcp_error_to_api_error(const MCPError& error) const;
+
+    std::unique_ptr<MCPResourceManager> resource_manager_;
+    std::unique_ptr<MCPToolManager> tool_manager_;
+    std::unique_ptr<MCPPromptManager> prompt_manager_;
 }; 

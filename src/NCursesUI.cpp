@@ -90,6 +90,12 @@ void NCursesUI::init_windows() {
     if (waiting_for_ai && line < maxy - 1) {
         mvwprintw(chat_win_, maxy - 2, 2, "[Waiting for AI response...]");
     }
+    if (!current_mcp_activity_.empty() && line < maxy - 1) {
+        int activity_line = waiting_for_ai ? maxy - 3 : maxy - 2;
+        if (activity_line > 0) {
+            mvwprintw(chat_win_, activity_line, 2, "[MCP: %s]", current_mcp_activity_.c_str());
+        }
+    }
     box(chat_win_, 0, 0);
     wrefresh(chat_win_);
     return total_lines;
@@ -144,6 +150,11 @@ void NCursesUI::show_error(std::string_view message) {
     getmaxyx(stdscr, rows, cols);
     mvprintw(rows - 2, 2, "Error: %s", message.data());
     refresh();
+}
+
+void NCursesUI::show_mcp_activity(std::string_view activity_message) {
+    current_mcp_activity_ = activity_message;
+    // Note: The activity will be displayed in the next draw_chat_window call
 }
 
 void NCursesUI::destroy_windows() {

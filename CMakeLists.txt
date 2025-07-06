@@ -16,6 +16,7 @@ add_executable(chatbot
     src/ClaudeAIClient.cpp
     src/XAIClient.cpp
     src/OpenAIClient.cpp
+    src/GeminiAIClient.cpp
     src/MessageHandler.cpp
     src/CommandLineEditor.cpp
     src/Logger.cpp
@@ -25,6 +26,10 @@ add_executable(chatbot
     src/MCPClient.cpp
     src/MCPMessage.cpp
     src/MCPProtocol.cpp
+    src/MCPResourceManager.cpp
+    src/MCPToolManager.cpp
+    src/MCPPromptManager.cpp
+    src/MCPService.cpp
 )
 
 target_include_directories(chatbot PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
@@ -53,3 +58,82 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(ixwebsocket)
 target_include_directories(chatbot PRIVATE include build/_deps/ixwebsocket-src/ixwebsocket)
+
+# Add MCP tools test program
+add_executable(test_mcp_tools
+    test_mcp_tools.cpp
+    src/MCPService.cpp
+    src/MCPClient.cpp
+    src/MCPMessage.cpp
+    src/MCPProtocol.cpp
+    src/MCPResourceManager.cpp
+    src/MCPToolManager.cpp
+    src/MCPPromptManager.cpp
+    src/Logger.cpp
+)
+
+target_include_directories(test_mcp_tools PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
+target_link_libraries(test_mcp_tools PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)
+
+# Add MCP Brave search test program
+add_executable(test_mcp_brave
+    test_mcp_brave.cpp
+    src/MCPService.cpp
+    src/MCPClient.cpp
+    src/MCPMessage.cpp
+    src/MCPProtocol.cpp
+    src/MCPResourceManager.cpp
+    src/MCPToolManager.cpp
+    src/MCPPromptManager.cpp
+    src/Logger.cpp
+)
+
+target_include_directories(test_mcp_brave PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
+target_link_libraries(test_mcp_brave PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)
+
+# Add ScrapeX Bridge test program
+add_executable(test_scrapex_bridge
+    test_scrapex_bridge.cpp
+    src/MCPService.cpp
+    src/MCPClient.cpp
+    src/MCPMessage.cpp
+    src/MCPProtocol.cpp
+    src/MCPResourceManager.cpp
+    src/MCPToolManager.cpp
+    src/MCPPromptManager.cpp
+    src/Logger.cpp
+)
+
+target_include_directories(test_scrapex_bridge PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
+target_link_libraries(test_scrapex_bridge PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)
+
+# Add simple MCP test program
+add_executable(test_simple_mcp
+    test_simple_mcp.cpp
+    src/MCPClient.cpp
+    src/MCPMessage.cpp
+    src/MCPProtocol.cpp
+    src/MCPResourceManager.cpp
+    src/MCPToolManager.cpp
+    src/MCPPromptManager.cpp
+    src/Logger.cpp
+)
+
+target_include_directories(test_simple_mcp PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
+target_link_libraries(test_simple_mcp PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)
+
+# Add MCP UI notifications test program
+add_executable(test_mcp_ui_notifications
+    test_mcp_ui_notifications.cpp
+    src/MCPService.cpp
+    src/MCPClient.cpp
+    src/MCPMessage.cpp
+    src/MCPProtocol.cpp
+    src/MCPResourceManager.cpp
+    src/MCPToolManager.cpp
+    src/MCPPromptManager.cpp
+    src/Logger.cpp
+)
+
+target_include_directories(test_mcp_ui_notifications PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
+target_link_libraries(test_mcp_ui_notifications PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)

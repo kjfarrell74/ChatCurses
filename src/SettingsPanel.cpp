@@ -55,6 +55,7 @@ void SettingsPanel::draw(WINDOW* win) {
         if ((FieldType)i == FieldType::XaiApiKey && api_key_field != "xai_api_key") continue;
         if ((FieldType)i == FieldType::ClaudeApiKey && api_key_field != "claude_api_key") continue;
         if ((FieldType)i == FieldType::OpenaiApiKey && api_key_field != "openai_api_key") continue;
+        if ((FieldType)i == FieldType::GeminiApiKey && api_key_field != "gemini_api_key") continue;
         if ((FieldType)i == FieldType::MCPServerUrl && settings_.provider != "mcp") continue;
 
         std::string label, value;
@@ -80,6 +81,10 @@ void SettingsPanel::draw(WINDOW* win) {
             case FieldType::OpenaiApiKey:
                 label = "OpenAI API Key";
                 value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.openai_api_key.empty() ? "<not set>" : "<hidden>");
+                break;
+            case FieldType::GeminiApiKey:
+                label = "Gemini API Key";
+                value = (in_edit_mode_ && selected_option_ == i) ? edit_buffer_ : (settings_.gemini_api_key.empty() ? "<not set>" : "<hidden>");
                 break;
             case FieldType::Provider:
                 label = "Provider";
@@ -119,6 +124,10 @@ void SettingsPanel::draw(WINDOW* win) {
                 label = "MCP Server URL";
                 value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.mcp_server_url;
                 break;
+            case FieldType::ScrapexServerUrl:
+                label = "ScrapeX Server URL";
+                value = in_edit_mode_ && selected_option_ == i ? edit_buffer_ : settings_.scrapex_server_url;
+                break;
             default: break;
         }
         draw_option(win, row++, label, value, selected_option_ == i, editing);
@@ -157,6 +166,9 @@ void SettingsPanel::handle_input(int ch) {
                 case FieldType::OpenaiApiKey:
                     settings_.openai_api_key = edit_buffer_;
                     break;
+                case FieldType::GeminiApiKey:
+                    settings_.gemini_api_key = edit_buffer_;
+                    break;
                 case FieldType::Provider:
                     // Cycle provider
                     if (settings_.provider == "xai") {
@@ -175,6 +187,9 @@ void SettingsPanel::handle_input(int ch) {
                     break;
                 case FieldType::MCPServerUrl:
                     settings_.mcp_server_url = edit_buffer_;
+                    break;
+                case FieldType::ScrapexServerUrl:
+                    settings_.scrapex_server_url = edit_buffer_;
                     break;
                 default:
                     break;
@@ -283,11 +298,17 @@ void SettingsPanel::handle_input(int ch) {
                     case FieldType::OpenaiApiKey:
                         edit_buffer_ = settings_.openai_api_key;
                         break;
+                    case FieldType::GeminiApiKey:
+                        edit_buffer_ = settings_.gemini_api_key;
+                        break;
                     case FieldType::Model:
                         edit_buffer_ = settings_.model;
                         break;
                     case FieldType::MCPServerUrl:
                         edit_buffer_ = settings_.mcp_server_url;
+                        break;
+                    case FieldType::ScrapexServerUrl:
+                        edit_buffer_ = settings_.scrapex_server_url;
                         break;
                     default:
                         break;

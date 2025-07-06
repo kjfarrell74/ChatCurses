@@ -57,4 +57,8 @@ public:
         std::function<void(const ApiErrorInfo& error)> on_error_cb) override;
     
     std::vector<std::string> available_models() const;
+
+private:
+    std::string enhance_system_prompt_with_tools(const std::string& original_prompt);
+    std::string process_with_mcp_tools(const std::string& user_message);
 };
