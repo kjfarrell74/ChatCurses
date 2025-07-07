@@ -1,0 +1,70 @@
+{
+  "mcpServers": {
+    "brave-search": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-brave-search"
+      ],
+      "command": "npx",
+      "connection_type": "stdio",
+      "description": "Web search via Brave Search API",
+      "enabled": false,
+      "env": {},
+      "name": "brave-search",
+      "url": ""
+    },
+    "filesystem": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/tmp"
+      ],
+      "command": "npx",
+      "connection_type": "stdio",
+      "description": "Local filesystem access",
+      "enabled": true,
+      "env": {},
+      "name": "filesystem",
+      "url": ""
+    },
+    "github": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "command": "npx",
+      "connection_type": "stdio",
+      "description": "GitHub repository access",
+      "enabled": false,
+      "env": {},
+      "name": "github",
+      "url": ""
+    },
+    "playwright": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-playwright"
+      ],
+      "command": "npx",
+      "connection_type": "stdio",
+      "description": "Web browser automation",
+      "enabled": false,
+      "env": {},
+      "name": "playwright",
+      "url": ""
+    },
+    "sequential-thinking": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "command": "npx",
+      "connection_type": "stdio",
+      "description": "Step-by-step reasoning capabilities",
+      "enabled": true,
+      "env": {},
+      "name": "sequential-thinking",
+      "url": ""
+    }
+  }
+}

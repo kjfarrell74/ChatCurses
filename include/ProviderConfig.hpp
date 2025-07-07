@@ -77,6 +77,8 @@ private:
             "openai", "OpenAI", "gpt-4o", std::vector<std::string>{"gpt-4o", "gpt-4", "gpt-3.5-turbo"}, "openai_api_key");
         providers_["gemini"] = std::make_unique<ProviderConfig>(
             "gemini", "Gemini", "gemini-1.5-pro", std::vector<std::string>{"gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-thinking-exp", "gemini-2.0-flash-exp"}, "gemini_api_key");
+        providers_["mcp"] = std::make_unique<ProviderConfig>(
+            "mcp", "MCP Servers", "mcp", std::vector<std::string>{"mcp"}, "");
     }
     ProviderRegistry(const ProviderRegistry&) = delete;
     ProviderRegistry& operator=(const ProviderRegistry&) = delete;

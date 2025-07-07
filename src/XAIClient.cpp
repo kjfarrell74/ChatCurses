@@ -1,48 +1,100 @@
 #include "XAIClient.hpp"
 #include "GlobalLogger.hpp"
 #include "MCPService.hpp"
+#include "MCPToolService.hpp"
 #include <format>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <regex>
 
 std::string XAIClient::enhance_system_prompt_with_tools(const std::string& original_prompt) {
-    auto& mcp = MCPService::instance();
-    if (!mcp.is_configured() || !mcp.is_connected()) {
+    auto& tool_service = MCPToolService::instance();
+    
+    std::string tools_description = tool_service.get_tools_description_for_ai();
+    if (tools_description.empty()) {
         return original_prompt;
     }
 
-    auto tools = mcp.list_available_tools();
-    if (tools.empty()) {
-        return original_prompt;
-    }
-
-    nlohmann::json tools_json = nlohmann::json::array();
-    for (const auto& tool : tools) {
-        tools_json.push_back(tool);
-    }
-
-    std::string tools_string = tools_json.dump(2);
-    return original_prompt + "\n\nAvailable tools:\n" + tools_string;
+    return original_prompt + tools_description;
 }
 
 std::string XAIClient::process_with_mcp_tools(const std::string& user_message) {
-    auto& mcp = MCPService::instance();
-    if (!mcp.is_configured() || !mcp.is_connected() || !mcp.should_use_tools(user_message)) {
-        return "";
-    }
-
-    // Simple tool detection: if message contains "search", call bravesearch
-    if (user_message.find("search") != std::string::npos) {
-        nlohmann::json args;
-        args["query"] = user_message;
-        auto result = mcp.call_tool("bravesearch", args);
-        if (result) {
-            return result->dump();
-        }
+    auto& tool_service = MCPToolService::instance();
+    
+    // Try auto tool calling based on message content
+    auto result = tool_service.auto_call_tools(user_message);
+    if (result.has_value()) {
+        get_logger().log(LogLevel::Info, "MCP tool called automatically, returning results");
+        return result->dump(2);
     }
 
     return "";
+}
+
+std::string XAIClient::process_tool_calls_in_response(const std::string& ai_response) {
+    auto& tool_service = MCPToolService::instance();
+    
+    // Detect tool calls in the AI response using the format: **TOOL_CALL: tool_name {"param": "value"}**
+    auto tool_calls = tool_service.detect_tool_calls_in_message(ai_response);
+    
+    if (tool_calls.empty()) {
+        return ai_response; // No tool calls to process
+    }
+    
+    std::string processed_response = ai_response;
+    
+    // Process each tool call
+    for (const auto& tool_call_str : tool_calls) {
+        get_logger().log(LogLevel::Info, std::format("Processing tool call: {}", tool_call_str));
+        
+        // Parse the tool call format: **TOOL_CALL: tool_name {...}**
+        std::regex tool_call_regex(R"(\*\*TOOL_CALL:\s*(\w+)\s*(\{[^}]*\})\*\*)");
+        std::smatch match;
+        
+        if (std::regex_search(tool_call_str, match, tool_call_regex)) {
+            std::string tool_name = match[1].str();
+            std::string args_str = match[2].str();
+            
+            try {
+                nlohmann::json args = nlohmann::json::parse(args_str);
+                
+                // Call the tool
+                auto result = tool_service.call_tool(tool_name, args);
+                
+                if (result.has_value()) {
+                    // Format the result nicely
+                    std::string tool_result = result->dump(2);
+                    std::string formatted_result = std::format("\n\n**Tool Result ({})**:\n```json\n{}\n```\n\n", tool_name, tool_result);
+                    
+                    // Replace the tool call with the result
+                    processed_response = std::regex_replace(processed_response, 
+                        std::regex(std::regex_replace(tool_call_str, std::regex(R"([\[\]{}()*+?.^$|\\])"), R"(\$&)")), 
+                        formatted_result);
+                        
+                    get_logger().log(LogLevel::Info, std::format("Tool '{}' executed successfully", tool_name));
+                } else {
+                    // Replace with error message
+                    std::string error_result = std::format("\n\n**Tool Error ({})**: Tool execution failed\n\n", tool_name);
+                    processed_response = std::regex_replace(processed_response, 
+                        std::regex(std::regex_replace(tool_call_str, std::regex(R"([\[\]{}()*+?.^$|\\])"), R"(\$&)")), 
+                        error_result);
+                        
+                    get_logger().log(LogLevel::Warning, std::format("Tool '{}' execution failed", tool_name));
+                }
+                
+            } catch (const std::exception& e) {
+                get_logger().log(LogLevel::Error, std::format("Error parsing tool call arguments: {}", e.what()));
+                
+                // Replace with error message
+                std::string error_result = std::format("\n\n**Tool Error ({})**: Invalid arguments\n\n", tool_name);
+                processed_response = std::regex_replace(processed_response, 
+                    std::regex(std::regex_replace(tool_call_str, std::regex(R"([\[\]{}()*+?.^$|\\])"), R"(\$&)")), 
+                    error_result);
+            }
+        }
+    }
+    
+    return processed_response;
 }
 
 size_t XAIWriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
@@ -170,10 +222,13 @@ std::future<std::expected<std::string, ApiErrorInfo>> XAIClient::send_message(
             
             std::string content = choice["message"]["content"];
             
-            // Log successful interaction
-            get_logger().log(LogLevel::Info, std::format("XAI API request successful. Response length: {}", content.length()));
+            // Process any tool calls in the AI response
+            std::string final_content = process_tool_calls_in_response(content);
             
-            return content;
+            // Log successful interaction
+            get_logger().log(LogLevel::Info, std::format("XAI API request successful. Response length: {}", final_content.length()));
+            
+            return final_content;
             
         } catch (const std::exception& e) {
             get_logger().log(LogLevel::Error, std::format("XAI API error: {}", e.what()));

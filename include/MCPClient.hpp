@@ -18,7 +18,10 @@
 
 class MCPClient : public AIClientInterface {
 public:
+    // Constructor for WebSocket connections
     MCPClient(const std::string& server_url = "ws://localhost:3000");
+    // Constructor for stdio connections
+    MCPClient(int stdin_fd, int stdout_fd);
     ~MCPClient();
 
     // AIClientInterface implementation
@@ -79,11 +82,17 @@ private:
     
     // WebSocket management
     void setup_websocket();
-    void cleanup_websocket();
+    void setup_stdio_connection();
+    void cleanup_connection();
     
     // State management
     std::unique_ptr<ix::WebSocket> ws_;
     std::string server_url_;
+    int stdin_fd_{-1};
+    int stdout_fd_{-1};
+    bool is_stdio_connection_{false};
+    std::thread stdio_read_thread_;
+    std::atomic<bool> stdio_read_thread_running_{false};
     std::string api_key_;
     std::string system_prompt_;
     std::string model_;

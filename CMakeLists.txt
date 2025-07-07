@@ -30,6 +30,9 @@ add_executable(chatbot
     src/MCPToolManager.cpp
     src/MCPPromptManager.cpp
     src/MCPService.cpp
+    src/MCPServerConfig.cpp
+    src/MCPServerManager.cpp
+    src/MCPToolService.cpp
 )
 
 target_include_directories(chatbot PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
@@ -137,3 +140,45 @@ add_executable(test_mcp_ui_notifications
 
 target_include_directories(test_mcp_ui_notifications PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
 target_link_libraries(test_mcp_ui_notifications PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)
+
+# Add MCP server configuration test program
+add_executable(test_mcp_config
+    test_mcp_config.cpp
+    src/MCPServerConfig.cpp
+    src/MCPServerManager.cpp
+    src/MCPClient.cpp
+    src/MCPMessage.cpp
+    src/MCPProtocol.cpp
+    src/MCPResourceManager.cpp
+    src/MCPToolManager.cpp
+    src/MCPPromptManager.cpp
+    src/Logger.cpp
+)
+
+target_include_directories(test_mcp_config PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
+target_link_libraries(test_mcp_config PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)
+
+# Add MCP tool integration test program
+add_executable(test_mcp_tool_integration
+    test_mcp_tool_integration.cpp
+    src/MCPServerConfig.cpp
+    src/MCPServerManager.cpp
+    src/MCPToolService.cpp
+    src/MCPClient.cpp
+    src/MCPMessage.cpp
+    src/MCPProtocol.cpp
+    src/MCPResourceManager.cpp
+    src/MCPToolManager.cpp
+    src/MCPPromptManager.cpp
+    src/Logger.cpp
+)
+
+target_include_directories(test_mcp_tool_integration PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
+target_link_libraries(test_mcp_tool_integration PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)
+
+# Simple MCP test
+add_executable(test_simple test_mcp_simple.cpp src/MCPServerConfig.cpp src/MCPToolService.cpp src/Logger.cpp
+    src/MCPClient.cpp src/MCPMessage.cpp src/MCPProtocol.cpp src/MCPResourceManager.cpp 
+    src/MCPToolManager.cpp src/MCPPromptManager.cpp src/MCPServerManager.cpp)
+target_include_directories(test_simple PRIVATE include build/_deps/ixwebsocket-src build/_deps/ixwebsocket-src/ixwebsocket)
+target_link_libraries(test_simple PRIVATE nlohmann_json::nlohmann_json ixwebsocket Threads::Threads)

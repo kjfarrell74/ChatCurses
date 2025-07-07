@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "name": "filesystem",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "env": {},
+      "description": "Local filesystem access",
+      "enabled": true,
+      "url": "",
+      "connection_type": "stdio"
+    },
+    "github": {
+      "name": "github", 
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {},
+      "description": "GitHub repository access",
+      "enabled": false,
+      "url": "",
+      "connection_type": "stdio"
+    },
+    "brave-search": {
+      "name": "brave-search",
+      "command": "npx", 
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {},
+      "description": "Web search via Brave Search API",
+      "enabled": false,
+      "url": "",
+      "connection_type": "stdio"
+    },
+    "sequential-thinking": {
+      "name": "sequential-thinking",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "env": {},
+      "description": "Step-by-step reasoning capabilities", 
+      "enabled": true,
+      "url": "",
+      "connection_type": "stdio"
+    },
+    "playwright": {
+      "name": "playwright",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-playwright"],
+      "env": {},
+      "description": "Web browser automation",
+      "enabled": false,
+      "url": "",
+      "connection_type": "stdio"
+    }
+  }
+}

@@ -4,12 +4,17 @@
 #include <ixwebsocket/IXWebSocket.h>
 #include <sstream>
 #include <format>
+#include <unistd.h>
+#include <sys/types.h>
+#include <cerrno>
+#include <cstring>
+#include <cstdlib>
 #include "MCPResourceManager.hpp"
 #include "MCPToolManager.hpp"
 #include "MCPPromptManager.hpp"
 
 MCPClient::MCPClient(const std::string& server_url)
-    : server_url_(server_url) {
+    : server_url_(server_url), is_stdio_connection_(false) {
     ws_ = std::make_unique<ix::WebSocket>();
     resource_manager_ = std::make_unique<MCPResourceManager>(this);
     tool_manager_ = std::make_unique<MCPToolManager>(this);
@@ -17,11 +22,19 @@ MCPClient::MCPClient(const std::string& server_url)
     setup_websocket();
 }
 
+MCPClient::MCPClient(int stdin_fd, int stdout_fd)
+    : stdin_fd_(stdin_fd), stdout_fd_(stdout_fd), is_stdio_connection_(true) {
+    resource_manager_ = std::make_unique<MCPResourceManager>(this);
+    tool_manager_ = std::make_unique<MCPToolManager>(this);
+    prompt_manager_ = std::make_unique<MCPPromptManager>(this);
+    setup_stdio_connection();
+}
+
 MCPClient::~MCPClient() {
     if (connection_state_ != MCPConnectionState::Disconnected) {
         disconnect().wait();
     }
-    cleanup_websocket();
+    cleanup_connection();
     if (bridge_thread_.joinable()) {
         bridge_thread_.join();
     }
@@ -162,21 +175,42 @@ void MCPClient::send_message_stream(
     }).detach();
 }
 
-// MCP-specific methods
-void MCPClient::set_server_url(const std::string& url) {
-    std::lock_guard lock(mutex_);
-    server_url_ = url;
-}
 
-void MCPClient::launch_websocketd_bridge(const std::string& mcp_cmd, int ws_port) {
-    if (bridge_running_) return;
-    
-    bridge_running_ = true;
-    bridge_thread_ = std::thread([this, mcp_cmd, ws_port]() {
-        std::string cmd = std::format("websocketd --port={} {} > /tmp/websocketd_bridge.log 2>&1", ws_port, mcp_cmd);
-        get_logger().log(LogLevel::Info, std::format("Starting MCP bridge: {}", cmd));
-        std::system(cmd.c_str());
-        bridge_running_ = false;
+
+void MCPClient::setup_stdio_connection() {
+    stdio_read_thread_running_ = true;
+    stdio_read_thread_ = std::thread([this]() {
+        char buffer[4096];
+        std::string current_message_buffer;
+        while (stdio_read_thread_running_) {
+            ssize_t bytes_read = read(stdout_fd_, buffer, sizeof(buffer) - 1);
+            if (bytes_read > 0) {
+                buffer[bytes_read] = '\0';
+                current_message_buffer += buffer;
+                
+                // MCP messages are newline-delimited JSON
+                size_t newline_pos;
+                while ((newline_pos = current_message_buffer.find('\n')) != std::string::npos) {
+                    std::string message = current_message_buffer.substr(0, newline_pos);
+                    current_message_buffer.erase(0, newline_pos + 1);
+                    handle_message(message);
+                }
+            } else if (bytes_read == 0) {
+                // EOF, pipe closed
+                get_logger().log(LogLevel::Info, "STDIO connection closed by server.");
+                stdio_read_thread_running_ = false;
+                connection_state_ = MCPConnectionState::Disconnected;
+            } else if (bytes_read == -1) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    // No data available, try again later
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                } else {
+                    get_logger().log(LogLevel::Error, std::format("Error reading from stdout pipe: {}", strerror(errno)));
+                    stdio_read_thread_running_ = false;
+                    connection_state_ = MCPConnectionState::Error;
+                }
+            }
+        }
     });
 }
 
@@ -192,24 +226,31 @@ std::future<std::expected<void, ApiErrorInfo>> MCPClient::connect() {
         
         connection_state_ = MCPConnectionState::Connecting;
         
-        // Connect WebSocket
-        ws_->setUrl(server_url_);
-        auto connect_result = ws_->connect(10);
-        if (!connect_result.success) {
-            connection_state_ = MCPConnectionState::Error;
-            return std::unexpected(ApiErrorInfo{
-                ApiError::ConnectionError,
-                std::format("Failed to connect to MCP server: {}", connect_result.errorStr)
-            });
+        if (is_stdio_connection_) {
+            // For stdio, connection is established when process is spawned
+            // Just need to initialize MCP protocol
+            get_logger().log(LogLevel::Info, "STDIO MCP client connecting...");
+        } else {
+            // Connect WebSocket
+            ws_->setUrl(server_url_);
+            auto connect_result = ws_->connect(10);
+            if (!connect_result.success) {
+                connection_state_ = MCPConnectionState::Error;
+                return std::unexpected(ApiErrorInfo{
+                    ApiError::ConnectionError,
+                    std::format("Failed to connect to MCP server: {}", connect_result.errorStr)
+                });
+            }
+            ws_->start();
         }
-        
-        ws_->start();
         
         // Initialize MCP protocol
         auto init_result = initialize_connection().get();
         if (!init_result) {
             connection_state_ = MCPConnectionState::Error;
-            ws_->stop();
+            if (!is_stdio_connection_) {
+                ws_->stop();
+            }
             return std::unexpected(init_result.error());
         }
         
@@ -237,7 +278,7 @@ std::future<std::expected<void, ApiErrorInfo>> MCPClient::disconnect() {
             // Ignore shutdown errors
         }
         
-        ws_->stop();
+        cleanup_connection();
         connection_state_ = MCPConnectionState::Disconnected;
         
         get_logger().log(LogLevel::Info, "MCP connection closed");
@@ -312,50 +353,87 @@ std::future<std::expected<void, ApiErrorInfo>> MCPClient::initialize_connection(
     });
 }
 
-std::future<std::expected<MCPResponse, ApiErrorInfo>> MCPClient::send_request(
-    const MCPRequest& request, 
-    std::chrono::milliseconds timeout) {
-    
+std::future<std::expected<MCPResponse, ApiErrorInfo>> MCPClient::send_request(const MCPRequest& request, 
+                                                                                   std::chrono::milliseconds timeout) {
     return std::async(std::launch::async, [this, request, timeout]() -> std::expected<MCPResponse, ApiErrorInfo> {
+        if (connection_state_ != MCPConnectionState::Connected) {
+            return std::unexpected(ApiErrorInfo{
+                ApiError::InvalidState,
+                "Not connected to MCP server"
+            });
+        }
+        
         std::string request_id = message_id_to_string(request.id);
         
-        // Create promise for response
+        // Create promise and future for the response
         std::promise<MCPResponse> response_promise;
         auto response_future = response_promise.get_future();
         
+        // Store the promise for handling the response
         {
             std::lock_guard lock(pending_requests_mutex_);
             pending_requests_[request_id] = std::move(response_promise);
         }
         
-        // Send request
-        auto message_json = request.to_json();
-        std::string message_str = message_json.dump();
+        // Send the request
+        auto request_json = request.to_json();
+        std::string request_str = request_json.dump();
         
-        get_logger().log(LogLevel::Debug, std::format("MCPClient::send_request - Sending: {}", message_str));
-        ws_->send(message_str);
+        if (is_stdio_connection_) {
+            write(stdin_fd_, request_str.c_str(), request_str.length());
+            write(stdin_fd_, "\n", 1);
+        } else {
+            ws_->send(request_str);
+        }
         
-        // Wait for response
+        // Wait for response with timeout
         auto status = response_future.wait_for(timeout);
+        
         if (status == std::future_status::timeout) {
-            std::lock_guard lock(pending_requests_mutex_);
-            pending_requests_.erase(request_id);
+            // Clean up the pending request
+            {
+                std::lock_guard lock(pending_requests_mutex_);
+                pending_requests_.erase(request_id);
+            }
             return std::unexpected(ApiErrorInfo{
                 ApiError::Timeout,
-                "Request timed out"
+                "Request timeout"
             });
         }
         
-        auto response = response_future.get();
-        get_logger().log(LogLevel::Debug, std::format("MCPClient::send_request - Response: {}", response.to_json().dump()));
-        return response;
+        return response_future.get();
+    });
+}
+
+void MCPClient::launch_websocketd_bridge(const std::string& mcp_cmd, int ws_port) {
+    if (bridge_running_) {
+        get_logger().log(LogLevel::Warning, "Bridge is already running");
+        return;
+    }
+    
+    bridge_running_ = true;
+    bridge_thread_ = std::thread([this, mcp_cmd, ws_port]() {
+        std::string command = std::format("websocketd --port={} -- {}", ws_port, mcp_cmd);
+        get_logger().log(LogLevel::Info, std::format("Starting websocketd bridge: {}", command));
+        
+        int result = system(command.c_str());
+        if (result != 0) {
+            get_logger().log(LogLevel::Error, std::format("websocketd bridge failed with exit code: {}", result));
+        }
+        
+        bridge_running_ = false;
     });
 }
 
 void MCPClient::send_notification(const MCPNotification& notification) {
     auto message_json = notification.to_json();
     std::string message_str = message_json.dump();
-    ws_->send(message_str);
+    if (is_stdio_connection_) {
+        write(stdin_fd_, message_str.c_str(), message_str.length());
+        write(stdin_fd_, "\n", 1);
+    } else {
+        ws_->send(message_str);
+    }
 }
 
 void MCPClient::handle_message(const std::string& message) {
@@ -441,10 +519,18 @@ void MCPClient::setup_websocket() {
     });
 }
 
-void MCPClient::cleanup_websocket() {
-    if (ws_) {
-        ws_->stop();
-        ws_.reset();
+void MCPClient::cleanup_connection() {
+    if (is_stdio_connection_) {
+        stdio_read_thread_running_ = false;
+        if (stdio_read_thread_.joinable()) {
+            stdio_read_thread_.join();
+        }
+        // File descriptors are closed by MCPServerManager
+    } else {
+        if (ws_) {
+            ws_->stop();
+            ws_.reset();
+        }
     }
 }
 
@@ -482,3 +568,4 @@ ApiErrorInfo MCPClient::mcp_error_to_api_error(const MCPError& error) const {
     
     return ApiErrorInfo{api_error, error.message};
 }
+

@@ -15,6 +15,8 @@
 #include "MCPClient.hpp"
 #include "MCPService.hpp"
 #include "MCPNotificationInterface.hpp"
+#include "MCPServerManager.hpp"
+#include "MCPToolService.hpp"
 
 #include <atomic>
 #include <vector>
@@ -69,10 +71,35 @@ public:
         gemini_client_.set_model(ProviderRegistry::instance().default_model("gemini"));
         gemini_client_.clear_history();
 
-        // Initialize MCP service if configured
+        // Initialize MCP server manager
+        auto mcp_init_result = mcp_server_manager_.initialize("mcp_config.json");
+        if (mcp_init_result.has_value()) {
+            get_logger().log(LogLevel::Info, "MCP server manager initialized successfully");
+            
+            // Connect to all enabled MCP servers
+            auto connect_result = mcp_server_manager_.connect_all();
+            if (connect_result.has_value()) {
+                auto connected_servers = mcp_server_manager_.get_connected_servers();
+                get_logger().log(LogLevel::Info, std::format("Connected to {} MCP servers", connected_servers.size()));
+                for (const auto& server : connected_servers) {
+                    get_logger().log(LogLevel::Info, std::format("  - {}", server));
+                }
+                
+                // Initialize MCP tool service with the server manager
+                MCPToolService::instance().initialize(&mcp_server_manager_);
+                get_logger().log(LogLevel::Info, "MCP tool service initialized");
+                
+            } else {
+                get_logger().log(LogLevel::Warning, "Some MCP servers failed to connect");
+            }
+        } else {
+            get_logger().log(LogLevel::Warning, "Failed to initialize MCP server manager");
+        }
+
+        // Initialize legacy MCP service if configured
         if (!settings_.mcp_server_url.empty()) {
             MCPService::instance().configure(settings_.mcp_server_url);
-            get_logger().log(LogLevel::Info, std::format("MCP service configured for: {}", settings_.mcp_server_url));
+            get_logger().log(LogLevel::Info, std::format("Legacy MCP service configured for: {}", settings_.mcp_server_url));
         }
 
         // Initialize Scrapex service if configured
@@ -265,6 +292,11 @@ public:
                                 waiting_for_ai_ = false;
                                 needs_redraw_ = true;
                             }).detach();
+                        } else if (settings_.provider == "mcp") {
+                            // Handle MCP server communication
+                            message_handler_.append_to_last_ai_message("MCP server communication not yet implemented", true);
+                            waiting_for_ai_ = false;
+                            needs_redraw_ = true;
                         }
                     }
                     break;
@@ -359,6 +391,7 @@ private:
     std::atomic<bool> running_;
     int scroll_offset_;
     MCPCallbackNotifier mcp_notifier_;
+    MCPServerManager mcp_server_manager_;
 };
 
 ChatbotApp::ChatbotApp() : impl_(std::make_unique<ChatbotAppImpl>()) {}
